@@ -186,8 +186,16 @@ export default function CareerIdentityPage() {
         {/* Banner Messages */}
         {errorMessage && (
           <div style={{ background: "rgba(244, 63, 94, 0.1)", border: "1px solid rgba(244, 63, 94, 0.3)", color: "var(--accent-rose)", padding: "1rem", borderRadius: "12px", marginBottom: "2rem" }}>
-            ⚠️ <strong>Backend Connection Alert:</strong> {errorMessage} <br />
-            Make sure to start the FastAPI server at port 8000 and run the <em>Initialize Sandbox</em> button below to trigger demo assets.
+            {errorMessage.toLowerCase().includes("failed to fetch") || errorMessage.toLowerCase().includes("failed to connect") ? (
+              <>
+                ⚠️ <strong>Backend Connection Alert:</strong> {errorMessage} <br />
+                Make sure to start the FastAPI server at port 8000 and run the <em>Initialize Sandbox</em> button below to trigger demo assets.
+              </>
+            ) : (
+              <>
+                ⚠️ <strong>Sync Warning:</strong> {errorMessage}
+              </>
+            )}
           </div>
         )}
         {successMessage && (

@@ -12,7 +12,17 @@ if DATABASE_URL.startswith("sqlite"):
         DATABASE_URL, connect_args={"check_same_thread": False}
     )
 else:
-    engine = create_engine(DATABASE_URL)
+    try:
+        engine = create_engine(DATABASE_URL)
+        # Eagerly test the connection to verify PostgreSQL is active
+        with engine.connect() as conn:
+            pass
+    except Exception as e:
+        print(f"Warning: PostgreSQL connection failed ({e}). Falling back to local SQLite database.")
+        DATABASE_URL = "sqlite:///./career_graph.db"
+        engine = create_engine(
+            DATABASE_URL, connect_args={"check_same_thread": False}
+        )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

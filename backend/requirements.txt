@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+email-validator
+httpx
+openai
+anthropic
+python-dotenv
+pyjwt
+cryptography
+python-multipart
+pytest

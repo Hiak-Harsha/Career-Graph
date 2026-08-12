@@ -1,0 +1,26 @@
+# Python / Pytest cache
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Local databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Frontend dependencies & builds
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Backend virtual environments
+backend/.venv/
+
+# System and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Archive files
+*.zip

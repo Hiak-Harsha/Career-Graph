@@ -11,3 +11,6 @@ pyjwt
 cryptography
 python-multipart
 pytest
+alembic
+psycopg2-binary
+

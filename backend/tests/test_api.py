@@ -246,3 +246,112 @@ def test_review_and_confirm_flow(client, db):
     dom_progress = db.query(DomainProgress).filter(DomainProgress.domain_id == dom.id).first()
     assert dom_progress is not None
     assert dom_progress.exposure_score > 0.0
+
+
+def test_validation_of_repository_urls(client, db):
+    from fastapi import HTTPException
+    from backend.app.analyzer import sync_github_project
+    
+    user = db.query(User).first()
+    assert user is not None
+    
+    # Test invalid format
+    invalid_repo = {
+        "name": "invalid-repo",
+        "html_url": "https://malicious-site.com/invalid-repo",
+        "created_at": "2025-01-10T12:00:00Z"
+    }
+    details = {"readme": "test", "languages": {}, "files": []}
+    
+    with pytest.raises(HTTPException) as exc_info:
+        sync_github_project(db, user, invalid_repo, details)
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Invalid repository URL format."
+
+
+def test_global_llm_caching(client, db):
+    from backend.app.analyzer import sync_github_project
+    from backend.app.models import AIInference, Project
+    import json
+    
+    user = db.query(User).first()
+    assert user is not None
+    
+    # Create unique hash
+    readme = "unique_cached_project_readme_content"
+    languages = {"Python": 1000}
+    files = ["main.py"]
+    
+    from backend.app.analyzer import calculate_sync_hash
+    test_hash = calculate_sync_hash(readme, languages, files)
+    
+    # Pre-populate AIInference cache entries
+    openai_payload = {
+        "domains": [{"name": "Cache Domain", "confidence": 0.9, "relevance": 0.9}],
+        "skills": [{"name": "Cache Skill", "category": "CONCEPT", "relationship": "USES"}],
+        "technologies": ["Python"]
+    }
+    anthropic_payload = {
+        "complexity_score": 8.5,
+        "status": "COMPLETED",
+        "problem_solving_patterns": ["caching pattern"],
+        "claims": [{"claim": "Cached achievement", "claim_type": "TECHNICAL_ACHIEVEMENT", "evidence_files": ["main.py"]}]
+    }
+    
+    cached_openai = AIInference(
+        prompt_type="openai_extraction",
+        content_hash=test_hash,
+        input_payload="dummy input",
+        response_payload=json.dumps(openai_payload)
+    )
+    cached_anthropic = AIInference(
+        prompt_type="anthropic_reasoning",
+        content_hash=test_hash,
+        input_payload="dummy input",
+        response_payload=json.dumps(anthropic_payload)
+    )
+    db.add(cached_openai)
+    db.add(cached_anthropic)
+    db.commit()
+    
+    # Run sync - should hit the cache and not require active API keys
+    repo_data = {
+        "name": "cache-project",
+        "html_url": "https://github.com/demo/cache-project",
+        "created_at": "2025-01-10T12:00:00Z"
+    }
+    details = {
+        "readme": readme,
+        "languages": languages,
+        "files": files,
+        "commits": []
+    }
+    
+    sync_github_project(db, user, repo_data, details, auto_confirm=True)
+    
+    # Verify project mapped from cache
+    proj = db.query(Project).filter(Project.title == "cache-project").first()
+    assert proj is not None
+    assert proj.complexity_score == 8.5
+    assert len(proj.skills) > 0
+    assert proj.skills[0].name == "Cache Skill"
+
+
+def test_sync_rate_limiting(client):
+    from backend.app.main import sync_request_history
+    
+    # Reset limit history for test user
+    response_auth = client.post("/api/auth/mock")
+    user_id = response_auth.json()["user_id"]
+    sync_request_history[str(user_id)] = []
+    
+    # Perform 5 successful requests
+    for i in range(5):
+        res = client.post("/api/sync/demo")
+        assert res.status_code == 200
+        
+    # The 6th request must trigger a 429 rate limit error
+    res_limit = client.post("/api/sync/demo")
+    assert res_limit.status_code == 429
+    assert "Rate limit exceeded" in res_limit.json()["detail"]
+

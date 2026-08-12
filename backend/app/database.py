@@ -3,8 +3,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from backend.app.models import Base, Role
 
-# Default to local SQLite database if no database URL is provided
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./career_graph.db")
+# Default to PostgreSQL database if no database URL is provided
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/career_graph")
 
 # Use check_same_thread=False only for SQLite
 if DATABASE_URL.startswith("sqlite"):

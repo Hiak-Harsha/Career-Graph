@@ -332,6 +332,7 @@ class AIInference(Base):
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     project_id = Column(GUID, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     prompt_type = Column(String(255), nullable=False)  # e.g., 'openai_extraction', 'anthropic_reasoning'
+    content_hash = Column(String(255), nullable=True, index=True)
     input_payload = Column(Text, nullable=False)
     response_payload = Column(Text, nullable=False)
     error_message = Column(Text, nullable=True)

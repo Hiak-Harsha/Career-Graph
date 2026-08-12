@@ -127,7 +127,7 @@ async def fetch_github_repo_details(access_token: str, owner: str, repo_name: st
 
 def analyze_project_openai(
     repo_name: str, description: str, languages: Dict[str, Any], files: List[str],
-    db: Optional[Session] = None, project_id: Optional[str] = None
+    db: Optional[Session] = None, project_id: Optional[str] = None, content_hash: Optional[str] = None
 ) -> Dict[str, Any]:
     """Uses OpenAI GPT-4o for deterministic taxonomy extraction (skills, domains, technologies)."""
     if not openai_client:
@@ -180,6 +180,7 @@ def analyze_project_openai(
                 log_entry = AIInference(
                     project_id=project_id,
                     prompt_type="openai_extraction",
+                    content_hash=content_hash,
                     input_payload=prompt,
                     response_payload=content or "Failed to retrieve",
                     error_message=error_msg
@@ -193,7 +194,7 @@ def analyze_project_openai(
 def analyze_project_anthropic(
     repo_name: str, description: str, readme: str, languages: Dict[str, Any], 
     files: List[str], openai_extracts: Dict[str, Any],
-    db: Optional[Session] = None, project_id: Optional[str] = None
+    db: Optional[Session] = None, project_id: Optional[str] = None, content_hash: Optional[str] = None
 ) -> Dict[str, Any]:
     """Uses Anthropic Claude 3.5 Sonnet for reasoning, complexity rating, and claim/evidence extraction."""
     if not anthropic_client:
@@ -213,7 +214,7 @@ def analyze_project_anthropic(
     Provide:
     1. A complexity score between 1.0 (trivial script) and 10.0 (high sophistication: distributed system, custom model, complex algorithm).
     2. A list of 2-5 concrete, factual claims of accomplishments (e.g. "Implemented Dijkstra's shortest-path algorithm in C").
-       - Attach each claim to the exact source files from the file list that back it up.
+         - Attach each claim to the exact source files from the file list that back it up.
     3. A set of 3-5 problem-solving patterns/methodologies used (e.g., "graph modeling", "optimization", "automation").
     4. Project Status: Completed, Active, Idea, or Paused.
     
@@ -257,6 +258,7 @@ def analyze_project_anthropic(
                 log_entry = AIInference(
                     project_id=project_id,
                     prompt_type="anthropic_reasoning",
+                    content_hash=content_hash,
                     input_payload=prompt,
                     response_payload=content or "Failed to retrieve",
                     error_message=error_msg
@@ -619,12 +621,20 @@ def save_career_snapshot(db: Session, user_id: str):
     snapshot.career_direction = direction
 
 
+import re
+
 def sync_github_project(db: Session, user: User, repo_data: Dict[str, Any], details: Dict[str, Any], auto_confirm: bool = False):
     """Integrates a single GitHub repository into the Career Graph with caching, uniqueness checking, and transaction atomicity."""
+    # 0. Validate repository URL format
+    html_url = repo_data.get("html_url", "")
+    github_url_pattern = re.compile(r"^https://github\.com/[a-zA-Z0-9_-]+/[a-zA-Z0-9_\.-]+$")
+    if not html_url or not github_url_pattern.match(html_url):
+        raise HTTPException(status_code=400, detail="Invalid repository URL format.")
+        
     # Check if project already exists
     project = db.query(Project).filter(
         Project.user_id == user.id,
-        Project.repository_url == repo_data["html_url"]
+        Project.repository_url == html_url
     ).first()
     
     # 1. Compute Sync Hash to check cache
@@ -641,39 +651,78 @@ def sync_github_project(db: Session, user: User, repo_data: Dict[str, Any], deta
         print(f"Project '{repo_data['name']}' has not changed (hash matches: {current_hash}). Skipping LLM calls.")
         cached = True
     else:
-        # Cache Miss: Call OpenAI + Anthropic Hybrid
-        openai_res = analyze_project_openai(
-            repo_data["name"], 
-            repo_data.get("description") or "", 
-            details.get("languages", {}), 
-            details.get("files", []),
-            db=db,
-            project_id=project.id if project else None
-        )
+        # Check global cache (AIInference table)
+        cached_openai = db.query(AIInference).filter(
+            AIInference.content_hash == current_hash,
+            AIInference.prompt_type == "openai_extraction",
+            AIInference.error_message == None
+        ).first()
         
-        if openai_res and anthropic_client:
-            ai_res = analyze_project_anthropic(
-                repo_data["name"], 
-                repo_data.get("description") or "", 
-                details.get("readme", ""), 
-                details.get("languages", {}), 
-                details.get("files", []), 
-                openai_res,
-                db=db,
-                project_id=project.id if project else None
-            )
+        cached_anthropic = db.query(AIInference).filter(
+            AIInference.content_hash == current_hash,
+            AIInference.prompt_type == "anthropic_reasoning",
+            AIInference.error_message == None
+        ).first()
         
+        if cached_openai and (not anthropic_client or cached_anthropic):
+            print(f"Global cache hit for content hash: {current_hash}. Skipping API calls.")
+            try:
+                openai_res = json.loads(cached_openai.response_payload)
+                if cached_anthropic:
+                    ai_res = json.loads(cached_anthropic.response_payload)
+                else:
+                    ai_res = {}
+                
+                # Reconstruct keys
+                ai_res["domains"] = openai_res.get("domains", [])
+                ai_res["skills"] = openai_res.get("skills", [])
+                ai_res["technologies"] = openai_res.get("technologies", [])
+                
+                # Update association
+                if project:
+                    cached_openai.project_id = project.id
+                    if cached_anthropic:
+                        cached_anthropic.project_id = project.id
+            except Exception as e:
+                print(f"Error parsing cached payloads: {e}")
+                ai_res = {}
+                
         if not ai_res:
-            ai_res = fallback_heuristics_analyzer(
+            # Cache Miss: Call OpenAI + Anthropic Hybrid
+            openai_res = analyze_project_openai(
                 repo_data["name"], 
                 repo_data.get("description") or "", 
                 details.get("languages", {}), 
-                details.get("files", [])
+                details.get("files", []),
+                db=db,
+                project_id=project.id if project else None,
+                content_hash=current_hash
             )
-        else:
-            ai_res["domains"] = openai_res.get("domains", [])
-            ai_res["skills"] = openai_res.get("skills", [])
-            ai_res["technologies"] = openai_res.get("technologies", [])
+            
+            if openai_res and anthropic_client:
+                ai_res = analyze_project_anthropic(
+                    repo_data["name"], 
+                    repo_data.get("description") or "", 
+                    details.get("readme", ""), 
+                    details.get("languages", {}), 
+                    details.get("files", []), 
+                    openai_res,
+                    db=db,
+                    project_id=project.id if project else None,
+                    content_hash=current_hash
+                )
+            
+            if not ai_res:
+                ai_res = fallback_heuristics_analyzer(
+                    repo_data["name"], 
+                    repo_data.get("description") or "", 
+                    details.get("languages", {}), 
+                    details.get("files", [])
+                )
+            else:
+                ai_res["domains"] = openai_res.get("domains", [])
+                ai_res["skills"] = openai_res.get("skills", [])
+                ai_res["technologies"] = openai_res.get("technologies", [])
 
     # 2. Upsert project record
     if not project:

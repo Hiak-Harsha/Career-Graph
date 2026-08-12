@@ -123,11 +123,30 @@ def update_profile(payload: UserUpdate, current_user: User = Depends(get_current
     return current_user
 
 
-# --- Sync & Ingestion Endpoints ---
+# Simple in-memory rate-limiter: maps user_id -> list of sync timestamps
+from collections import defaultdict
+import time
+
+sync_request_history = defaultdict(list)
+
+def check_sync_rate_limit(user_id: str):
+    now = time.time()
+    # Keep only requests within the last 15 minutes (900 seconds)
+    user_history = [t for t in sync_request_history[user_id] if now - t < 900]
+    sync_request_history[user_id] = user_history
+    
+    if len(user_history) >= 5:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. You can only sync up to 5 times per 15 minutes."
+        )
+    sync_request_history[user_id].append(now)
+
 
 @app.post("/api/sync")
 async def trigger_sync(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Triggers GitHub synchronization for the user's repositories."""
+    check_sync_rate_limit(str(current_user.id))
     encrypted_token = current_user.github_access_token
     if not encrypted_token:
         raise HTTPException(
@@ -157,6 +176,7 @@ async def trigger_sync(current_user: User = Depends(get_current_user), db: Sessi
 @app.post("/api/sync/demo")
 def trigger_demo_sync(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Simulates a sync by injecting high-quality mock project data to showcase V1 features."""
+    check_sync_rate_limit(str(current_user.id))
     mock_repos = [
         {
             "name": "smart-navigation-system",

@@ -1,20 +1,40 @@
+"use client";
+
 import styles from "./CurrentlyBuilding.module.css";
 import type { Project } from "../../types";
+import {
+  ArrowRight,
+  CircleDot,
+  CheckCircle2,
+  Clock,
+  RotateCw,
+  PauseCircle,
+  HelpCircle,
+} from "lucide-react";
 
 interface CurrentlyBuildingProps {
   projects: Project[];
   onViewAll?: () => void;
 }
 
-const STATUS_ICON: Record<string, string> = {
-  IDEA:       "○",
-  EXPLORING:  "◐",
-  PLANNED:    "◑",
-  ACTIVE:     "●",
-  COMPLETED:  "✓",
-  MAINTAINED: "↻",
-  PAUSED:     "‖",
-};
+function getStatusIcon(status: string) {
+  switch (status) {
+    case "COMPLETED":
+      return <CheckCircle2 size={11} />;
+    case "ACTIVE":
+      return <CircleDot size={11} />;
+    case "EXPLORING":
+    case "PLANNED":
+    case "IDEA":
+      return <Clock size={11} />;
+    case "MAINTAINED":
+      return <RotateCw size={11} />;
+    case "PAUSED":
+      return <PauseCircle size={11} />;
+    default:
+      return <HelpCircle size={11} />;
+  }
+}
 
 const STATUS_CLASS: Record<string, string> = {
   IDEA:       "status-idea",
@@ -48,7 +68,8 @@ export function CurrentlyBuilding({ projects, onViewAll }: CurrentlyBuildingProp
         <span className="section-label">Currently Building</span>
         {onViewAll && (
           <button className={`btn btn-ghost ${styles.viewAll}`} onClick={onViewAll} type="button">
-            View all →
+            <span>View all</span>
+            <ArrowRight size={13} />
           </button>
         )}
       </div>
@@ -64,7 +85,7 @@ export function CurrentlyBuilding({ projects, onViewAll }: CurrentlyBuildingProp
                 <span className={styles.type}>{p.project_type.charAt(0) + p.project_type.slice(1).toLowerCase()}</span>
               </div>
               <div className={`${styles.statusPill} ${styles[STATUS_CLASS[p.status] ?? ""]}`}>
-                <span className={styles.statusIcon}>{STATUS_ICON[p.status] ?? "●"}</span>
+                <span className={styles.statusIcon}>{getStatusIcon(p.status)}</span>
                 <span>{p.status.charAt(0) + p.status.slice(1).toLowerCase()}</span>
                 {p.updated_at && (
                   <span className={styles.lastActivity}>

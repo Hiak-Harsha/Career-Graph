@@ -1,39 +1,59 @@
 "use client";
 
+import React from "react";
 import styles from "./Sidebar.module.css";
 import type { UserProfile } from "../../types";
+import {
+  LayoutDashboard,
+  Network,
+  FolderGit2,
+  Lightbulb,
+  Compass,
+  ShieldCheck,
+  FileText,
+  UserCheck,
+  History,
+  Sparkles,
+} from "lucide-react";
+import { GithubIcon } from "./icons/GithubIcon";
+
+type NavItem = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+};
 
 type NavSection = {
   label?: string;
-  items: { id: string; label: string }[];
+  items: NavItem[];
 };
 
 const NAV_SECTIONS: NavSection[] = [
   {
     items: [
-      { id: "dashboard", label: "Overview" },
-      { id: "graph",     label: "Career Graph" },
+      { id: "dashboard", label: "Overview", icon: LayoutDashboard },
+      { id: "graph", label: "Career Graph", icon: Network },
     ],
   },
   {
     label: "Work",
     items: [
-      { id: "projects", label: "Projects" },
-      { id: "ideas",    label: "Ideas" },
+      { id: "projects", label: "Projects", icon: FolderGit2 },
+      { id: "ideas", label: "Ideas", icon: Lightbulb },
     ],
   },
   {
     items: [
-      { id: "domains",  label: "Domains" },
-      { id: "evidence", label: "Evidence" },
+      { id: "domains", label: "Domains", icon: Compass },
+      { id: "evidence", label: "Evidence", icon: ShieldCheck },
     ],
   },
   {
     label: "Profiles",
     items: [
-      { id: "resume",    label: "Resume" },
-      { id: "recruiter", label: "Recruiter view" },
-      { id: "timeline",  label: "Timeline" },
+      { id: "resume", label: "Resume", icon: FileText },
+      { id: "recruiter", label: "Recruiter view", icon: UserCheck },
+      { id: "timeline", label: "Timeline", icon: History },
     ],
   },
 ];
@@ -69,16 +89,27 @@ export function Sidebar({
   handleRunDemoSync,
 }: SidebarProps) {
   const dotClass =
-    syncing ? "status-dot status-dot-syncing animate-pulse-dot" :
-    syncStatus === "connected" ? "status-dot status-dot-active" :
-    syncStatus === "error"     ? "status-dot status-dot-error"  :
-    "status-dot status-dot-inactive";
+    syncing
+      ? "status-dot status-dot-syncing animate-pulse-dot"
+      : syncStatus === "connected"
+      ? "status-dot status-dot-active"
+      : syncStatus === "error"
+      ? "status-dot status-dot-error"
+      : "status-dot status-dot-inactive";
 
   return (
     <aside className={styles.sidebar} aria-label="Primary navigation">
       {/* Brand */}
       <div className={styles.brand}>
-        <span className={styles.brandName}>Career Graph</span>
+        <div className={styles.brandHeader}>
+          <div className={styles.brandLogo}>
+            <Network size={16} />
+          </div>
+          <div className={styles.brandTitleGroup}>
+            <span className={styles.brandName}>Career Graph</span>
+            <span className={styles.brandBadge}>Core</span>
+          </div>
+        </div>
         {profile?.headline && (
           <span className={styles.brandSub}>{profile.headline}</span>
         )}
@@ -105,15 +136,18 @@ export function Sidebar({
                 {section.label}
               </span>
             )}
-            {section.items.map(({ id, label }) => (
+            {section.items.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
-                className={`${styles.navButton} ${activeView === id ? styles.navActive : ""}`}
+                className={`${styles.navButton} ${
+                  activeView === id ? styles.navActive : ""
+                }`}
                 onClick={() => setActiveView(id)}
                 aria-current={activeView === id ? "page" : undefined}
               >
-                {label}
+                <Icon size={16} className={styles.navIcon} />
+                <span>{label}</span>
               </button>
             ))}
           </div>
@@ -128,7 +162,8 @@ export function Sidebar({
           onClick={handleGithubSync}
           disabled={syncing}
         >
-          Sync GitHub
+          <GithubIcon size={15} />
+          <span>Sync GitHub</span>
         </button>
         <button
           type="button"
@@ -136,7 +171,8 @@ export function Sidebar({
           onClick={handleRunDemoSync}
           disabled={syncing}
         >
-          Load demo data
+          <Sparkles size={14} />
+          <span>Load demo data</span>
         </button>
       </div>
     </aside>

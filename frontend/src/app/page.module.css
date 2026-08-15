@@ -269,6 +269,9 @@
   font-size: 0.73rem;
   font-weight: 600;
   color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 /* ─── Ideas ───────────────────────────────────────────────────────────────── */
@@ -400,4 +403,95 @@
   border-radius: var(--radius-xl);
   text-align: center;
   color: var(--text-secondary);
+}
+
+/* ─── Utility classes migrated from inline styles ───────────────────────── */
+.loadingLabel {
+  margin-bottom: 1.5rem;
+  letter-spacing: 0.12em;
+}
+
+.onboardingConnectBtn {
+  padding: 0.75rem 2rem;
+  font-size: 0.95rem;
+}
+
+.onboardingDemoBtn {
+  font-size: 0.875rem;
+}
+
+.comingSoonLabel {
+  margin-bottom: 0.75rem;
+}
+
+.comingSoonText {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.gridEmptyText {
+  color: var(--text-muted);
+  grid-column: 1 / -1;
+  font-size: var(--text-sm);
+}
+
+.formLabel {
+  margin-bottom: 1rem;
+}
+
+.formInput {
+  margin-bottom: 0.75rem;
+}
+
+.formTextarea {
+  resize: vertical;
+  margin-bottom: 0.75rem;
+}
+
+.formActionsRow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.formSelect {
+  flex: 1;
+}
+
+.formSubmitBtn {
+  white-space: nowrap;
+}
+
+.emptyIdeasText {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.ideaBadgeRow {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.matureBtn {
+  font-size: var(--text-xs);
+  align-self: flex-start;
+  color: var(--success);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.maturedText {
+  font-size: var(--text-xs);
+  color: var(--success);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.emptyTimelineText {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }

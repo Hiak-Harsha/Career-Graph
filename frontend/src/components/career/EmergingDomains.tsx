@@ -1,5 +1,6 @@
 import styles from "./EmergingDomains.module.css";
 import type { DomainProgress } from "../../types";
+import { TrendingUp } from "lucide-react";
 
 interface EmergingDomainsProps {
   domainProgress: DomainProgress[];
@@ -23,7 +24,9 @@ export function EmergingDomains({ domainProgress }: EmergingDomainsProps) {
       <div className={styles.list}>
         {emerging.slice(0, 4).map((dp) => (
           <div key={dp.domain.id ?? dp.domain.name} className={styles.item}>
-            <div className={styles.indicator} aria-hidden="true">↑</div>
+            <div className={styles.indicator} aria-hidden="true">
+              <TrendingUp size={13} />
+            </div>
             <div className={styles.content}>
               <span className={styles.name}>{dp.domain.name}</span>
               <span className={styles.desc}>

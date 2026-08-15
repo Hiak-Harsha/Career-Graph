@@ -50,7 +50,7 @@ export function IdentityHero({ profile, domainProgress, lastUpdated }: IdentityH
           </p>
         </>
       ) : (
-        <p className={styles.narrative} style={{ color: "var(--text-muted)" }}>
+        <p className={`${styles.narrative} ${styles.narrativeMuted}`}>
           Connect GitHub to build your professional identity.
         </p>
       )}

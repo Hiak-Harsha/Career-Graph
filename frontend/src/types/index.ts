@@ -213,6 +213,7 @@ export interface CriteriaMatch {
 }
 
 export interface RecruiterData {
+  candidate_name?: string;
   role_name: string;
   overall_match: "Strong Match" | "Moderate Match" | "Weak Match";
   why_text?: string;
@@ -224,6 +225,8 @@ export interface RecruiterData {
   demonstrated_skills?: string[];
   evidence_gaps?: string[];
 }
+
+export type RecruiterMatch = RecruiterData;
 
 // ─── Change Feed ─────────────────────────────────────────────────────────────
 

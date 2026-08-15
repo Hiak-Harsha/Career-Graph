@@ -45,6 +45,10 @@
   margin-bottom: 1.25rem;
 }
 
+.narrativeMuted {
+  color: var(--text-muted);
+}
+
 .narrative strong {
   color: var(--text-primary);
   font-weight: 600;

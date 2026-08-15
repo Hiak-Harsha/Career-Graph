@@ -24,6 +24,10 @@
   flex-shrink: 0;
 }
 
+.headerLabel {
+  margin-bottom: 0.4rem;
+}
+
 .claimText {
   font-size: 1rem;
   font-weight: 600;
@@ -34,10 +38,12 @@
 }
 
 .closeBtn {
-  font-size: 1.5rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
-  padding: 0.25rem 0.5rem;
+  padding: 0.35rem;
+  border-radius: 9999px;
   flex-shrink: 0;
 }
 
@@ -172,6 +178,9 @@
   font-weight: 600;
   color: var(--accent);
   transition: opacity var(--t-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .evidenceLink:hover { opacity: 0.75; }

@@ -104,6 +104,18 @@
   color: var(--text-secondary);
 }
 
+.cardSectionLabel {
+  margin-bottom: 1rem;
+}
+
+.whySectionLabel {
+  margin-bottom: 0.75rem;
+}
+
+.verifiedClaimsLabel {
+  margin-bottom: 0.5rem;
+}
+
 /* Sub label */
 .subLabel {
   font-size: 0.68rem;
@@ -113,6 +125,10 @@
   color: var(--text-muted);
   font-family: var(--font-display);
   margin-bottom: 0.6rem;
+}
+
+.subLabelMt {
+  margin-top: 1rem;
 }
 
 .tagList {
@@ -129,6 +145,9 @@
   background: var(--success-subtle);
   color: var(--success);
   border: 1px solid rgba(74,222,128,.2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .gapTag {
@@ -139,6 +158,9 @@
   background: var(--warning-subtle);
   color: var(--warning);
   border: 1px solid rgba(251,191,36,.2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 /* Why card */
@@ -249,6 +271,9 @@
   color: var(--accent);
   font-weight: 600;
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 /* States */

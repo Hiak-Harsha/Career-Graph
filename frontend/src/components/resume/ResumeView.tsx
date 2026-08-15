@@ -2,6 +2,7 @@
 
 import styles from "./ResumeView.module.css";
 import type { ResumeData } from "../../types";
+import { Download, FileText, ShieldCheck, Check } from "lucide-react";
 
 const ROLES = [
   "Software Engineer",
@@ -92,17 +93,19 @@ export function ResumeView({ resumeData, loading, selectedRole, onRoleChange }: 
         <div className={styles.actionBar}>
           <button
             type="button"
-            className="btn btn-primary"
-            style={{ fontSize: "0.82rem" }}
+            className={`btn btn-primary ${styles.actionBtn}`}
             onClick={() => window.print()}
           >
-            Download PDF
+            <Download size={14} />
+            <span>Download PDF</span>
           </button>
-          <button type="button" className="btn btn-secondary" style={{ fontSize: "0.82rem" }}>
-            ATS Preview
+          <button type="button" className={`btn btn-secondary ${styles.actionBtn}`}>
+            <FileText size={14} />
+            <span>ATS Preview</span>
           </button>
-          <button type="button" className="btn btn-ghost" style={{ fontSize: "0.82rem" }}>
-            Evidence View
+          <button type="button" className={`btn btn-ghost ${styles.actionBtn}`}>
+            <ShieldCheck size={14} />
+            <span>Evidence View</span>
           </button>
         </div>
       )}
@@ -165,7 +168,10 @@ export function ResumeView({ resumeData, loading, selectedRole, onRoleChange }: 
                       <p className={styles.annotationLabel}>Selected because</p>
                       <div className={styles.annotationReasons}>
                         {p.selected_reasons.map((reason, i) => (
-                          <span key={i} className={styles.annotationReason}>✓ {reason}</span>
+                          <span key={i} className={styles.annotationReason}>
+                            <Check size={11} />
+                            <span>{reason}</span>
+                          </span>
                         ))}
                       </div>
                     </div>

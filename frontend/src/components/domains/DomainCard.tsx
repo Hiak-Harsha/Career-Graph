@@ -4,23 +4,38 @@ import { useState } from "react";
 import styles from "./DomainCard.module.css";
 import { DomainDrawer } from "./DomainDrawer";
 import type { DomainProgress, Project } from "../../types";
+import { TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-react";
 
 interface DomainCardProps {
   dp: DomainProgress;
   projects?: Project[];
 }
 
-const TRAJECTORY_LABEL: Record<string, string> = {
-  INCREASING: "↑ Increasing",
-  STABLE:     "→ Stable",
-  DECREASING: "↓ Declining",
-};
-
-const TRAJECTORY_CLASS: Record<string, string> = {
-  INCREASING: "traj-up",
-  STABLE:     "traj-stable",
-  DECREASING: "traj-down",
-};
+function getTrajectoryBadge(trajectory: string) {
+  switch (trajectory) {
+    case "INCREASING":
+      return (
+        <span className={`${styles.traj} traj-up`}>
+          <TrendingUp size={12} />
+          <span>Growing</span>
+        </span>
+      );
+    case "DECREASING":
+      return (
+        <span className={`${styles.traj} traj-down`}>
+          <TrendingDown size={12} />
+          <span>Declining</span>
+        </span>
+      );
+    default:
+      return (
+        <span className={`${styles.traj} traj-stable`}>
+          <Minus size={12} />
+          <span>Stable</span>
+        </span>
+      );
+  }
+}
 
 const LEVEL_DISPLAY: Record<string, string> = {
   EXPOSURE:   "Exposure",
@@ -60,16 +75,16 @@ export function DomainCard({ dp, projects = [] }: DomainCardProps) {
         <div className={styles.header}>
           <div>
             <h3 className={styles.name}>{dp.domain.name}</h3>
-            <p className={styles.levelRow}>
+            <div className={styles.levelRow}>
               <span className={styles.level}>
                 {LEVEL_DISPLAY[dp.current_level] ?? dp.current_level}
               </span>
-              <span className={`${styles.traj} ${TRAJECTORY_CLASS[dp.trajectory] ?? ""}`}>
-                {TRAJECTORY_LABEL[dp.trajectory] ?? dp.trajectory}
-              </span>
-            </p>
+              {getTrajectoryBadge(dp.trajectory)}
+            </div>
           </div>
-          <span className={styles.chevron} aria-hidden="true">›</span>
+          <span className={styles.chevron} aria-hidden="true">
+            <ChevronRight size={18} />
+          </span>
         </div>
 
         <div className={styles.divider} />

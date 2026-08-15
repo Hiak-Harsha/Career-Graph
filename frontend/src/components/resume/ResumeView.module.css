@@ -89,6 +89,14 @@
 .actionBar {
   display: flex;
   gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.actionBtn {
+  font-size: var(--text-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 /* Resume document */
@@ -238,6 +246,9 @@
   font-size: 0.75rem;
   color: #16a34a;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 /* Claims */

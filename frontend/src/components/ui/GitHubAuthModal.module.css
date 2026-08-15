@@ -63,6 +63,9 @@
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   transition: all var(--t-fast);
 }
 
@@ -137,4 +140,11 @@
   font-size: 0.875rem;
   color: var(--text-secondary);
   line-height: 1.6;
+}
+
+.oauthActions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
 }

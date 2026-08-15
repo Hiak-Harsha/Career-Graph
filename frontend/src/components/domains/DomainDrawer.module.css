@@ -23,6 +23,10 @@
   flex-shrink: 0;
 }
 
+.headerLabel {
+  margin-bottom: 0.4rem;
+}
+
 .title {
   font-family: var(--font-display);
   font-size: 1.4rem;
@@ -32,11 +36,17 @@
 }
 
 .closeBtn {
-  font-size: 1.5rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
-  padding: 0.25rem 0.5rem;
+  padding: 0.35rem;
+  border-radius: 9999px;
   flex-shrink: 0;
+}
+
+.sectionLabel {
+  margin-bottom: 0.75rem;
 }
 
 .body {
@@ -78,6 +88,9 @@
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 /* Section */

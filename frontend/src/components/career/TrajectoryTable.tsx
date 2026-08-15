@@ -1,22 +1,37 @@
 import styles from "./TrajectoryTable.module.css";
 import type { DomainProgress } from "../../types";
+import { ArrowRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface TrajectoryTableProps {
   domainProgress: DomainProgress[];
   onViewAll?: () => void;
 }
 
-const TRAJECTORY_LABEL: Record<string, string> = {
-  INCREASING: "↑ Growing",
-  STABLE:     "→ Stable",
-  DECREASING: "↓ Declining",
-};
-
-const TRAJECTORY_CLASS: Record<string, string> = {
-  INCREASING: "traj-up",
-  STABLE:     "traj-stable",
-  DECREASING: "traj-down",
-};
+function getTrajectoryBadge(trajectory: string) {
+  switch (trajectory) {
+    case "INCREASING":
+      return (
+        <span className={`${styles.traj} traj-up`}>
+          <TrendingUp size={12} />
+          <span>Growing</span>
+        </span>
+      );
+    case "DECREASING":
+      return (
+        <span className={`${styles.traj} traj-down`}>
+          <TrendingDown size={12} />
+          <span>Declining</span>
+        </span>
+      );
+    default:
+      return (
+        <span className={`${styles.traj} traj-stable`}>
+          <Minus size={12} />
+          <span>Stable</span>
+        </span>
+      );
+  }
+}
 
 const LEVEL_DISPLAY: Record<string, string> = {
   EXPOSURE:   "Exposure",
@@ -38,7 +53,8 @@ export function TrajectoryTable({ domainProgress, onViewAll }: TrajectoryTablePr
         <span className="section-label">Professional Trajectory</span>
         {onViewAll && (
           <button className={`btn btn-ghost ${styles.viewAll}`} onClick={onViewAll} type="button">
-            Explore domains →
+            <span>Explore domains</span>
+            <ArrowRight size={13} />
           </button>
         )}
       </div>
@@ -61,11 +77,7 @@ export function TrajectoryTable({ domainProgress, onViewAll }: TrajectoryTablePr
                 <td className={styles.level}>
                   {LEVEL_DISPLAY[dp.current_level] ?? dp.current_level}
                 </td>
-                <td>
-                  <span className={`${styles.traj} ${TRAJECTORY_CLASS[dp.trajectory] ?? ""}`}>
-                    {TRAJECTORY_LABEL[dp.trajectory] ?? dp.trajectory}
-                  </span>
-                </td>
+                <td>{getTrajectoryBadge(dp.trajectory)}</td>
               </tr>
             ))}
           </tbody>

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import styles from "./EvidenceDrawer.module.css";
 import type { Claim } from "../../types";
+import { ArrowDown, ExternalLink, X } from "lucide-react";
 
 interface EvidenceDrawerProps {
   claim: Claim;
@@ -20,7 +21,9 @@ const EVIDENCE_TYPE_LABEL: Record<string, string> = {
 
 export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
@@ -35,7 +38,7 @@ export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
       <aside className={`${styles.drawer} animate-slide-right`} aria-label="Evidence proof chain">
         <div className={styles.header}>
           <div>
-            <p className="section-label" style={{ marginBottom: "0.4rem" }}>Verified Claim</p>
+            <p className={`section-label ${styles.headerLabel}`}>Verified Claim</p>
             <p className={styles.claimText}>&ldquo;{claim.claim}&rdquo;</p>
           </div>
           <button
@@ -44,7 +47,7 @@ export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
             onClick={onClose}
             aria-label="Close"
           >
-            ×
+            <X size={18} />
           </button>
         </div>
 
@@ -71,7 +74,7 @@ export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
 
           {/* Proof chain */}
           <div className={styles.section}>
-            <p className="section-label" style={{ marginBottom: "1rem" }}>Proof Chain</p>
+            <p className="section-label">Proof Chain</p>
 
             <div className={styles.proofChain}>
               {/* Step 1 — Claim */}
@@ -83,7 +86,9 @@ export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
               </div>
 
               {/* Connector */}
-              <div className={styles.proofConnector}>↓</div>
+              <div className={styles.proofConnector}>
+                <ArrowDown size={14} />
+              </div>
 
               {/* Step 2 — Project */}
               <div className={styles.proofNode}>
@@ -94,7 +99,9 @@ export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
               </div>
 
               {/* Connector */}
-              <div className={styles.proofConnector}>↓</div>
+              <div className={styles.proofConnector}>
+                <ArrowDown size={14} />
+              </div>
 
               {/* Step 3 — Evidence items */}
               <div className={styles.proofNode}>
@@ -104,7 +111,7 @@ export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
                     {claim.evidence.map((ev, idx) => (
                       <div key={idx} className={styles.evidenceItem}>
                         <div className={styles.evidenceItemHeader}>
-                          <span className={`badge badge-accent`}>
+                          <span className="badge badge-accent">
                             {EVIDENCE_TYPE_LABEL[ev.type] ?? ev.type}
                           </span>
                           {ev.source_identifier && (
@@ -125,7 +132,8 @@ export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
                             rel="noopener noreferrer"
                             className={styles.evidenceLink}
                           >
-                            Open in GitHub ↗
+                            <span>Open in GitHub</span>
+                            <ExternalLink size={12} />
                           </a>
                         )}
                       </div>

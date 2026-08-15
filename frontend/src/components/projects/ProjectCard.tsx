@@ -1,15 +1,35 @@
+"use client";
+
 import styles from "./ProjectCard.module.css";
 import type { Project } from "../../types";
+import {
+  ExternalLink,
+  CheckCircle2,
+  CircleDot,
+  Clock,
+  RotateCw,
+  PauseCircle,
+  HelpCircle,
+} from "lucide-react";
 
-const STATUS_ICON: Record<string, string> = {
-  IDEA:       "○",
-  EXPLORING:  "◐",
-  PLANNED:    "◑",
-  ACTIVE:     "●",
-  COMPLETED:  "✓",
-  MAINTAINED: "↻",
-  PAUSED:     "‖",
-};
+function getStatusIcon(status: string) {
+  switch (status) {
+    case "COMPLETED":
+      return <CheckCircle2 size={12} />;
+    case "ACTIVE":
+      return <CircleDot size={12} />;
+    case "EXPLORING":
+    case "PLANNED":
+    case "IDEA":
+      return <Clock size={12} />;
+    case "MAINTAINED":
+      return <RotateCw size={12} />;
+    case "PAUSED":
+      return <PauseCircle size={12} />;
+    default:
+      return <HelpCircle size={12} />;
+  }
+}
 
 const STATUS_CLASS: Record<string, string> = {
   ACTIVE:     "s-active",
@@ -43,7 +63,7 @@ export function ProjectCard({ project }: { project: Project }) {
         </div>
 
         <span className={`${styles.statusBadge} ${styles[STATUS_CLASS[project.status] ?? "s-neutral"]}`}>
-          <span className={styles.statusIcon}>{STATUS_ICON[project.status] ?? "●"}</span>
+          <span className={styles.statusIcon}>{getStatusIcon(project.status)}</span>
           {project.status.charAt(0) + project.status.slice(1).toLowerCase()}
         </span>
       </div>
@@ -93,7 +113,8 @@ export function ProjectCard({ project }: { project: Project }) {
             className={styles.repoLink}
             onClick={(e) => e.stopPropagation()}
           >
-            View source ↗
+            <span>View source</span>
+            <ExternalLink size={12} />
           </a>
         )}
       </div>

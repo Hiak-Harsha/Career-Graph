@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import styles from "./DomainDrawer.module.css";
 import type { DomainProgress, Project } from "../../types";
+import { TrendingUp, TrendingDown, Minus, X } from "lucide-react";
 
 interface DomainDrawerProps {
   dp: DomainProgress;
@@ -19,11 +20,31 @@ const LEVEL_DISPLAY: Record<string, string> = {
   ADVANCED:   "Advanced",
 };
 
-const TRAJECTORY_LABEL: Record<string, string> = {
-  INCREASING: "↑ Increasing",
-  STABLE:     "→ Stable",
-  DECREASING: "↓ Declining",
-};
+function getTrajectoryElement(trajectory: string) {
+  switch (trajectory) {
+    case "INCREASING":
+      return (
+        <span className={`${styles.metricValue} traj-up`}>
+          <TrendingUp size={14} />
+          <span>Growing</span>
+        </span>
+      );
+    case "DECREASING":
+      return (
+        <span className={`${styles.metricValue} traj-down`}>
+          <TrendingDown size={14} />
+          <span>Declining</span>
+        </span>
+      );
+    default:
+      return (
+        <span className={`${styles.metricValue} traj-stable`}>
+          <Minus size={14} />
+          <span>Stable</span>
+        </span>
+      );
+  }
+}
 
 function formatDate(str?: string): string {
   if (!str) return "—";
@@ -35,9 +56,10 @@ function scoreToBar(score: number): number {
 }
 
 export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
-  // Close on Escape
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
@@ -62,7 +84,7 @@ export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
         {/* Header */}
         <div className={styles.header}>
           <div>
-            <p className="section-label" style={{ marginBottom: "0.5rem" }}>Domain</p>
+            <p className={`section-label ${styles.headerLabel}`}>Domain</p>
             <h2 className={styles.title}>{dp.domain.name}</h2>
           </div>
           <button
@@ -71,7 +93,7 @@ export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
             onClick={onClose}
             aria-label="Close"
           >
-            ×
+            <X size={18} />
           </button>
         </div>
 
@@ -86,9 +108,7 @@ export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
             </div>
             <div className={styles.metric}>
               <span className={styles.metricLabel}>Trajectory</span>
-              <span className={`${styles.metricValue} ${dp.trajectory === "INCREASING" ? "traj-up" : dp.trajectory === "DECREASING" ? "traj-down" : "traj-stable"}`}>
-                {TRAJECTORY_LABEL[dp.trajectory] ?? dp.trajectory}
-              </span>
+              {getTrajectoryElement(dp.trajectory)}
             </div>
             <div className={styles.metric}>
               <span className={styles.metricLabel}>First detected</span>
@@ -102,7 +122,7 @@ export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
 
           {/* Dimension bars */}
           <div className={styles.section}>
-            <p className="section-label" style={{ marginBottom: "1rem" }}>Dimensions</p>
+            <p className={`section-label ${styles.sectionLabel}`}>Dimensions</p>
             <div className={styles.barList}>
               {[
                 { label: "Evidence", value: dp.evidence_score },
@@ -127,12 +147,14 @@ export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
           {/* Project evidence */}
           {projects.length > 0 && (
             <div className={styles.section}>
-              <p className="section-label" style={{ marginBottom: "0.75rem" }}>Project Evidence</p>
+              <p className={`section-label ${styles.sectionLabel}`}>Project Evidence</p>
               <div className={styles.projectList}>
                 {projects.map((p) => (
                   <div key={p.id} className={styles.projectItem}>
                     <span className={styles.projectTitle}>{p.title}</span>
-                    <span className={styles.projectStatus}>{p.status.charAt(0) + p.status.slice(1).toLowerCase()}</span>
+                    <span className={styles.projectStatus}>
+                      {p.status.charAt(0) + p.status.slice(1).toLowerCase()}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -142,7 +164,7 @@ export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
           {/* Skills */}
           {allSkills.length > 0 && (
             <div className={styles.section}>
-              <p className="section-label" style={{ marginBottom: "0.75rem" }}>Skills in this Domain</p>
+              <p className={`section-label ${styles.sectionLabel}`}>Skills in this Domain</p>
               <div className={styles.skillsList}>
                 {allSkills.map((s) => (
                   <span key={s.id} className="chip">{s.name}</span>
@@ -153,7 +175,7 @@ export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
 
           {/* Evidence counts */}
           <div className={styles.section}>
-            <p className="section-label" style={{ marginBottom: "0.75rem" }}>Evidence</p>
+            <p className={`section-label ${styles.sectionLabel}`}>Evidence</p>
             <div className={styles.evidenceCounts}>
               <div className={styles.evidenceCount}>
                 <span className={styles.evidenceNum}>{projects.length}</span>
@@ -165,7 +187,7 @@ export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
               </div>
               <div className={styles.evidenceCount}>
                 <span className={styles.evidenceNum}>
-                  {projects.filter(p => p.repository_url).length}
+                  {projects.filter((p) => p.repository_url).length}
                 </span>
                 <span className={styles.evidenceCountLabel}>repositories</span>
               </div>

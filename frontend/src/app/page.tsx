@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import styles from "./page.module.css";
 import { apiFetch } from "../config";
 
@@ -34,19 +35,22 @@ import { ResumeView } from "../components/resume/ResumeView";
 import { EvidenceDrawer } from "../components/evidence/EvidenceDrawer";
 import { GitHubAuthModal } from "../components/ui/GitHubAuthModal";
 
+// Icons
+import {
+  Check,
+  CircleDot,
+  Circle,
+  ArrowRight,
+  Plus,
+  Sparkles,
+} from "lucide-react";
+import { GithubIcon } from "../components/ui/icons/GithubIcon";
+
 // Types
-import type { ActiveView, Idea, Claim } from "../types";
+import type { ActiveView, Idea, Claim, Project, DomainProgress, TimelineEntry } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const ROLES = [
-  "Software Engineer",
-  "Machine Learning Engineer",
-  "Backend Engineer",
-  "Research Engineer",
-];
-
-type IdeaStatus = "EXPLORING" | "PROTOTYPE" | "MATURING" | "ABANDONED" | "MATURED";
 type IdeaMaturity = "EARLY" | "MID" | "MATURE";
 
 const MATURITY_LABEL: Record<string, string> = {
@@ -76,13 +80,30 @@ function LoadingScreen() {
 
   return (
     <div className={styles.loadingScreen}>
-      <p className="section-label" style={{ marginBottom: "1.5rem", letterSpacing: "0.12em" }}>
+      <p className={`section-label ${styles.loadingLabel}`}>
         Understanding your work
       </p>
       <div className={styles.loadingSteps}>
         {steps.map((label, i) => (
-          <div key={i} className={`${styles.loadingStep} ${i < step ? styles.stepDone : i === step ? styles.stepActive : styles.stepPending}`}>
-            <span className={styles.stepIcon}>{i < step ? "✓" : i === step ? "●" : "○"}</span>
+          <div
+            key={i}
+            className={`${styles.loadingStep} ${
+              i < step
+                ? styles.stepDone
+                : i === step
+                ? styles.stepActive
+                : styles.stepPending
+            }`}
+          >
+            <span className={styles.stepIcon}>
+              {i < step ? (
+                <Check size={14} color="var(--success)" />
+              ) : i === step ? (
+                <CircleDot size={14} color="var(--accent)" />
+              ) : (
+                <Circle size={14} color="var(--text-muted)" />
+              )}
+            </span>
             <span>{label}</span>
           </div>
         ))}
@@ -113,38 +134,46 @@ function OnboardingScreen({
       <div className={styles.onboardingActions}>
         <button
           type="button"
-          className="btn btn-primary"
-          style={{ padding: "0.75rem 2rem", fontSize: "0.95rem" }}
+          className={`btn btn-primary ${styles.onboardingConnectBtn}`}
           onClick={onSync}
           disabled={syncing}
         >
-          Connect GitHub
+          <GithubIcon size={16} />
+          <span>Connect GitHub</span>
         </button>
         <button
           type="button"
-          className="btn btn-ghost"
-          style={{ fontSize: "0.875rem" }}
+          className={`btn btn-ghost ${styles.onboardingDemoBtn}`}
           onClick={onDemo}
           disabled={syncing}
         >
-          {syncing ? "Loading…" : "Load demo data"}
+          <Sparkles size={14} />
+          <span>{syncing ? "Loading…" : "Load demo data"}</span>
         </button>
       </div>
     </div>
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Main Application ─────────────────────────────────────────────────────────
 
-export default function CareerGraphPage() {
+export default function CareerGraphApp() {
   const [activeView, setActiveView] = useState<ActiveView>("dashboard");
   const [selectedRole, setSelectedRole] = useState("Software Engineer");
 
   const {
-    profile, projects, ideas, domainProgress, skillsProgress,
-    problemSolving, timeline,
-    loading, syncing, error, success, lastUpdated,
-    refresh, syncGitHub, runDemo, clearMessages,
+    profile,
+    projects,
+    ideas,
+    domainProgress,
+    loading,
+    syncing,
+    error,
+    success,
+    lastUpdated,
+    refresh,
+    runDemo,
+    clearMessages,
   } = useCareerGraph();
 
   const { resumeData, loading: resumeLoading, fetchResume } = useResume();
@@ -180,7 +209,12 @@ export default function CareerGraphPage() {
       await apiFetch("/ideas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: ideaTitle, description: ideaDesc, status: "EXPLORING", maturity: ideaMaturity }),
+        body: JSON.stringify({
+          title: ideaTitle,
+          description: ideaDesc,
+          status: "EXPLORING",
+          maturity: ideaMaturity,
+        }),
       });
       setIdeaTitle("");
       setIdeaDesc("");
@@ -196,7 +230,12 @@ export default function CareerGraphPage() {
       await apiFetch(`/ideas/${ideaId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "", description: "", status: "MATURING", maturity: "MATURE" }),
+        body: JSON.stringify({
+          title: "",
+          description: "",
+          status: "MATURING",
+          maturity: "MATURE",
+        }),
       });
       await refresh();
     } catch (err) {
@@ -226,7 +265,15 @@ export default function CareerGraphPage() {
         profile={profile}
         syncing={syncing}
         lastUpdated={lastUpdated}
-        syncStatus={displayError ? "error" : syncing ? "syncing" : projects.length > 0 ? "connected" : "idle"}
+        syncStatus={
+          displayError
+            ? "error"
+            : syncing
+            ? "syncing"
+            : projects.length > 0
+            ? "connected"
+            : "idle"
+        }
         handleGithubSync={() => setGithubModalOpen(true)}
         handleRunDemoSync={runDemo}
       />
@@ -236,7 +283,8 @@ export default function CareerGraphPage() {
         {displayError && (
           <div className={styles.banner} data-type="error" role="alert">
             <strong>Connection issue:</strong> {displayError}
-            {(displayError.toLowerCase().includes("failed to fetch") || displayError.toLowerCase().includes("failed to connect")) && (
+            {(displayError.toLowerCase().includes("failed to fetch") ||
+              displayError.toLowerCase().includes("failed to connect")) && (
               <> — Start the FastAPI server on port 8000, then load demo data.</>
             )}
           </div>
@@ -252,22 +300,70 @@ export default function CareerGraphPage() {
 
         {/* Onboarding */}
         {isEmpty && (
-          <OnboardingScreen onDemo={runDemo} onSync={() => setGithubModalOpen(true)} syncing={syncing} />
+          <OnboardingScreen
+            onDemo={runDemo}
+            onSync={() => setGithubModalOpen(true)}
+            syncing={syncing}
+          />
         )}
 
-        {/* Views */}
+        {/* Views with Framer Motion transitions */}
         {!loading && !isEmpty && (
-          <>
-            {activeView === "dashboard"  && <DashboardView projects={projects} domainProgress={domainProgress} profile={profile} lastUpdated={lastUpdated} setActiveView={setActiveView} />}
-            {activeView === "graph"      && <GraphPlaceholder />}
-            {activeView === "projects"   && <ProjectsView projects={projects} />}
-            {activeView === "ideas"      && <IdeasView ideas={ideas} ideaTitle={ideaTitle} setIdeaTitle={setIdeaTitle} ideaDesc={ideaDesc} setIdeaDesc={setIdeaDesc} ideaMaturity={ideaMaturity} setIdeaMaturity={setIdeaMaturity} onAddIdea={handleAddIdea} onMatureIdea={handleMatureIdea} />}
-            {activeView === "domains"    && <DomainsView domainProgress={domainProgress} projects={projects} />}
-            {activeView === "evidence"   && <EvidenceView projects={projects} />}
-            {activeView === "resume"     && <ResumeView resumeData={resumeData} loading={resumeLoading} selectedRole={selectedRole} onRoleChange={setSelectedRole} />}
-            {activeView === "recruiter"  && <CandidateIntelligence recruiterData={recruiterData} loading={recruiterLoading} selectedRole={selectedRole} onRoleChange={setSelectedRole} profileName={profile?.name} />}
-            {activeView === "timeline"   && <TimelineView timeline={timeline} />}
-          </>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeView}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {activeView === "dashboard" && (
+                <DashboardView
+                  projects={projects}
+                  domainProgress={domainProgress}
+                  profile={profile}
+                  lastUpdated={lastUpdated}
+                  setActiveView={setActiveView}
+                />
+              )}
+              {activeView === "graph" && <GraphPlaceholder />}
+              {activeView === "projects" && <ProjectsView projects={projects} />}
+              {activeView === "ideas" && (
+                <IdeasView
+                  ideas={ideas}
+                  ideaTitle={ideaTitle}
+                  setIdeaTitle={setIdeaTitle}
+                  ideaDesc={ideaDesc}
+                  setIdeaDesc={setIdeaDesc}
+                  ideaMaturity={ideaMaturity}
+                  setIdeaMaturity={setIdeaMaturity}
+                  onAddIdea={handleAddIdea}
+                  onMatureIdea={handleMatureIdea}
+                />
+              )}
+              {activeView === "domains" && (
+                <DomainsView domainProgress={domainProgress} projects={projects} />
+              )}
+              {activeView === "evidence" && <EvidenceView projects={projects} />}
+              {activeView === "resume" && (
+                <ResumeView
+                  resumeData={resumeData}
+                  loading={resumeLoading}
+                  selectedRole={selectedRole}
+                  onRoleChange={setSelectedRole}
+                />
+              )}
+              {activeView === "recruiter" && (
+                <CandidateIntelligence
+                  recruiterData={recruiterData}
+                  loading={recruiterLoading}
+                  selectedRole={selectedRole}
+                  onRoleChange={setSelectedRole}
+                />
+              )}
+              {activeView === "timeline" && <TimelineView />}
+            </motion.div>
+          </AnimatePresence>
         )}
       </main>
 
@@ -284,9 +380,15 @@ export default function CareerGraphPage() {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function DashboardView({ projects, domainProgress, profile, lastUpdated, setActiveView }: {
-  projects: import("../types").Project[];
-  domainProgress: import("../types").DomainProgress[];
+function DashboardView({
+  projects,
+  domainProgress,
+  profile,
+  lastUpdated,
+  setActiveView,
+}: {
+  projects: Project[];
+  domainProgress: DomainProgress[];
   profile: import("../types").UserProfile | null;
   lastUpdated: Date | null;
   setActiveView: (v: ActiveView) => void;
@@ -297,7 +399,7 @@ function DashboardView({ projects, domainProgress, profile, lastUpdated, setActi
     <div className={styles.view}>
       <IdentityHero profile={profile} domainProgress={domainProgress} lastUpdated={lastUpdated} />
 
-      {/* Stats row — honest labels only */}
+      {/* Stats row */}
       <div className={styles.statsRow}>
         <div className={styles.statCard}>
           <span className={styles.statNum}>{projects.length}</span>
@@ -333,8 +435,8 @@ function GraphPlaceholder() {
         <p className={styles.pageSubtitle}>Interactive visualization of your professional network</p>
       </div>
       <div className={styles.placeholder}>
-        <p className="section-label" style={{ marginBottom: "0.75rem" }}>Coming soon</p>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
+        <p className={`section-label ${styles.comingSoonLabel}`}>Coming soon</p>
+        <p className={styles.comingSoonText}>
           An interactive node graph of your domains, skills, and projects is planned for the next release.
         </p>
       </div>
@@ -344,7 +446,7 @@ function GraphPlaceholder() {
 
 // ─── Projects view ────────────────────────────────────────────────────────────
 
-function ProjectsView({ projects }: { projects: import("../types").Project[] }) {
+function ProjectsView({ projects }: { projects: Project[] }) {
   return (
     <div className={styles.view}>
       <div className={styles.pageHeader}>
@@ -354,8 +456,15 @@ function ProjectsView({ projects }: { projects: import("../types").Project[] }) 
         </p>
       </div>
       <div className={styles.projectGrid}>
-        {projects.map((p) => (
-          <ProjectCard key={p.id} project={p} />
+        {projects.map((p, i) => (
+          <motion.div
+            key={p.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: i * 0.04 }}
+          >
+            <ProjectCard project={p} />
+          </motion.div>
         ))}
       </div>
     </div>
@@ -364,9 +473,12 @@ function ProjectsView({ projects }: { projects: import("../types").Project[] }) 
 
 // ─── Domains view ─────────────────────────────────────────────────────────────
 
-function DomainsView({ domainProgress, projects }: {
-  domainProgress: import("../types").DomainProgress[];
-  projects: import("../types").Project[];
+function DomainsView({
+  domainProgress,
+  projects,
+}: {
+  domainProgress: DomainProgress[];
+  projects: Project[];
 }) {
   return (
     <div className={styles.view}>
@@ -375,8 +487,15 @@ function DomainsView({ domainProgress, projects }: {
         <p className={styles.pageSubtitle}>Your professional territory</p>
       </div>
       <div className={styles.domainGrid}>
-        {domainProgress.map((dp) => (
-          <DomainCard key={dp.domain.id ?? dp.domain.name} dp={dp} projects={projects} />
+        {domainProgress.map((dp, i) => (
+          <motion.div
+            key={dp.domain.id ?? dp.domain.name}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: i * 0.04 }}
+          >
+            <DomainCard dp={dp} projects={projects} />
+          </motion.div>
         ))}
       </div>
     </div>
@@ -385,7 +504,7 @@ function DomainsView({ domainProgress, projects }: {
 
 // ─── Evidence view ────────────────────────────────────────────────────────────
 
-function EvidenceView({ projects }: { projects: import("../types").Project[] }) {
+function EvidenceView({ projects }: { projects: Project[] }) {
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
 
   const allClaims: (Claim & { projectTitle: string })[] = projects.flatMap((p) =>
@@ -402,12 +521,15 @@ function EvidenceView({ projects }: { projects: import("../types").Project[] }) 
       </div>
 
       <div className={styles.claimsGrid}>
-        {allClaims.map((claim) => (
-          <button
+        {allClaims.map((claim, i) => (
+          <motion.button
             key={claim.id}
             type="button"
             className={styles.claimCard}
             onClick={() => setSelectedClaim(claim)}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: i * 0.03 }}
           >
             <div className={styles.claimCardHeader}>
               <span className="badge badge-accent">{claim.claim_type ?? "CLAIM"}</span>
@@ -418,13 +540,16 @@ function EvidenceView({ projects }: { projects: import("../types").Project[] }) 
               <span className={styles.claimConfidence}>
                 {Math.round(claim.confidence * 100)}% confidence
               </span>
-              <span className={styles.claimInspect}>Inspect proof →</span>
+              <span className={styles.claimInspect}>
+                <span>Inspect proof</span>
+                <ArrowRight size={12} />
+              </span>
             </div>
-          </button>
+          </motion.button>
         ))}
 
         {allClaims.length === 0 && (
-          <p style={{ color: "var(--text-muted)", gridColumn: "1 / -1" }}>
+          <p className={styles.gridEmptyText}>
             No evidence claims yet. Sync GitHub to generate them.
           </p>
         )}
@@ -441,16 +566,22 @@ function EvidenceView({ projects }: { projects: import("../types").Project[] }) 
 
 function IdeasView({
   ideas,
-  ideaTitle, setIdeaTitle,
-  ideaDesc, setIdeaDesc,
-  ideaMaturity, setIdeaMaturity,
+  ideaTitle,
+  setIdeaTitle,
+  ideaDesc,
+  setIdeaDesc,
+  ideaMaturity,
+  setIdeaMaturity,
   onAddIdea,
   onMatureIdea,
 }: {
   ideas: Idea[];
-  ideaTitle: string; setIdeaTitle: (v: string) => void;
-  ideaDesc: string; setIdeaDesc: (v: string) => void;
-  ideaMaturity: IdeaMaturity; setIdeaMaturity: (v: IdeaMaturity) => void;
+  ideaTitle: string;
+  setIdeaTitle: (v: string) => void;
+  ideaDesc: string;
+  setIdeaDesc: (v: string) => void;
+  ideaMaturity: IdeaMaturity;
+  setIdeaMaturity: (v: IdeaMaturity) => void;
   onAddIdea: (e: React.FormEvent) => void;
   onMatureIdea: (id: string) => void;
 }) {
@@ -464,37 +595,40 @@ function IdeasView({
       <div className={styles.ideasLayout}>
         {/* Capture form */}
         <form onSubmit={onAddIdea} className={styles.captureForm}>
-          <p className="section-label" style={{ marginBottom: "1rem" }}>Capture an idea</p>
+          <p className={`section-label ${styles.formLabel}`}>Capture an idea</p>
           <input
             type="text"
             placeholder="What are you thinking about?"
-            className="input-base"
-            style={{ marginBottom: "0.75rem" }}
+            className={`input-base ${styles.formInput}`}
             value={ideaTitle}
             onChange={(e) => setIdeaTitle(e.target.value)}
             required
           />
           <textarea
             placeholder="Describe your concept or hypothesis…"
-            className="input-base"
+            className={`input-base ${styles.formTextarea}`}
             rows={3}
-            style={{ resize: "vertical", marginBottom: "0.75rem" }}
             value={ideaDesc}
             onChange={(e) => setIdeaDesc(e.target.value)}
           />
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          <div className={styles.formActionsRow}>
             <select
-              className="input-base"
-              style={{ flex: 1 }}
+              className={`input-base ${styles.formSelect}`}
               value={ideaMaturity}
               onChange={(e) => setIdeaMaturity(e.target.value as IdeaMaturity)}
             >
               {(["EARLY", "MID", "MATURE"] as IdeaMaturity[]).map((m) => (
-                <option key={m} value={m}>{MATURITY_LABEL[m]}</option>
+                <option key={m} value={m}>
+                  {MATURITY_LABEL[m]}
+                </option>
               ))}
             </select>
-            <button type="submit" className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>
-              Save idea
+            <button
+              type="submit"
+              className={`btn btn-primary ${styles.formSubmitBtn}`}
+            >
+              <Plus size={14} />
+              <span>Save idea</span>
             </button>
           </div>
         </form>
@@ -502,20 +636,30 @@ function IdeasView({
         {/* Ideas list */}
         <div className={styles.ideasList}>
           {ideas.length === 0 && (
-            <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+            <p className={styles.emptyIdeasText}>
               No ideas yet. Capture your first concept above.
             </p>
           )}
-          {ideas.map((idea) => (
-            <div key={idea.id} className={styles.ideaCard}>
+          {ideas.map((idea, i) => (
+            <motion.div
+              key={idea.id}
+              className={styles.ideaCard}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: i * 0.04 }}
+            >
               <div className={styles.ideaCardHeader}>
                 <h3 className={styles.ideaTitle}>{idea.title}</h3>
-                <div style={{ display: "flex", gap: "0.4rem" }}>
-                  <span className={`badge ${
-                    idea.maturity === "MATURE" ? "badge-success" :
-                    idea.maturity === "MID"    ? "badge-warning" :
-                    "badge-neutral"
-                  }`}>
+                <div className={styles.ideaBadgeRow}>
+                  <span
+                    className={`badge ${
+                      idea.maturity === "MATURE"
+                        ? "badge-success"
+                        : idea.maturity === "MID"
+                        ? "badge-warning"
+                        : "badge-neutral"
+                    }`}
+                  >
                     {MATURITY_LABEL[idea.maturity] ?? idea.maturity}
                   </span>
                   <span className="badge badge-neutral">{idea.status}</span>
@@ -529,18 +673,19 @@ function IdeasView({
               {idea.status !== "MATURED" ? (
                 <button
                   type="button"
-                  className="btn btn-ghost"
-                  style={{ fontSize: "0.8rem", alignSelf: "flex-start", color: "var(--success)" }}
+                  className={`btn btn-ghost ${styles.matureBtn}`}
                   onClick={() => onMatureIdea(idea.id)}
                 >
-                  Mature to project →
+                  <span>Mature to project</span>
+                  <ArrowRight size={12} />
                 </button>
               ) : (
-                <span style={{ fontSize: "0.78rem", color: "var(--success)", fontWeight: 600 }}>
-                  ✓ Matured into project
+                <span className={styles.maturedText}>
+                  <Check size={12} />
+                  <span>Matured into project</span>
                 </span>
               )}
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
@@ -550,7 +695,9 @@ function IdeasView({
 
 // ─── Timeline view ────────────────────────────────────────────────────────────
 
-function TimelineView({ timeline }: { timeline: import("../types").TimelineEntry[] }) {
+function TimelineView() {
+  const { timeline } = useCareerGraph();
+
   return (
     <div className={styles.view}>
       <div className={styles.pageHeader}>
@@ -559,7 +706,7 @@ function TimelineView({ timeline }: { timeline: import("../types").TimelineEntry
       </div>
 
       <div className={styles.timeline}>
-        {timeline.map((entry, idx) => (
+        {timeline.map((entry: TimelineEntry, idx: number) => (
           <div key={idx} className={styles.timelineItem}>
             <div className={styles.timelineMarker} />
             <div className={styles.timelineContent}>
@@ -570,16 +717,16 @@ function TimelineView({ timeline }: { timeline: import("../types").TimelineEntry
               )}
               <div className={styles.timelineTags}>
                 {entry.skills.map((s, i) => (
-                  <span key={i} className="chip chip-neutral">{s}</span>
+                  <span key={i} className="chip chip-neutral">
+                    {s}
+                  </span>
                 ))}
               </div>
             </div>
           </div>
         ))}
         {timeline.length === 0 && (
-          <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-            No timeline events yet.
-          </p>
+          <p className={styles.emptyTimelineText}>No timeline events yet.</p>
         )}
       </div>
     </div>

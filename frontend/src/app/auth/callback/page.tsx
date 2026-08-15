@@ -3,6 +3,9 @@
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE } from "../../../config";
+import styles from "./callback.module.css";
+import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { GithubIcon } from "../../../components/ui/icons/GithubIcon";
 
 function AuthCallbackHandler() {
   const router = useRouter();
@@ -54,64 +57,48 @@ function AuthCallbackHandler() {
   }, [searchParams, router]);
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      minHeight: "100vh",
-      background: "#06080F",
-      color: "#F8FAFC",
-      fontFamily: "var(--font-body)",
-      padding: "2rem",
-      textAlign: "center"
-    }}>
-      <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", marginBottom: "1rem" }}>
-        Connecting GitHub Account
-      </h2>
-      {error ? (
-        <div style={{
-          padding: "1rem",
-          background: "rgba(239, 68, 68, 0.1)",
-          border: "1px solid rgba(239, 68, 68, 0.2)",
-          color: "#EF4444",
-          borderRadius: "12px",
-          maxWidth: "400px",
-          lineHeight: "1.5"
-        }}>
-          <p style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Authentication Error</p>
-          <p style={{ fontSize: "0.875rem" }}>{error}</p>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ marginTop: "1rem", padding: "0.5rem 1.25rem", fontSize: "0.8rem" }}
-            onClick={() => router.push("/")}
-          >
-            Return to Dashboard
-          </button>
+    <div className={styles.container}>
+      <div className={`${styles.card} surface`}>
+        <div style={{ color: "var(--accent)" }}>
+          <GithubIcon size={36} />
         </div>
-      ) : (
-        <p style={{ color: "#94A3B8", fontSize: "0.95rem" }}>{status}</p>
-      )}
+        <h2 className={styles.title}>Connecting GitHub</h2>
+        {error ? (
+          <div className={styles.errorBox}>
+            <div className={styles.errorHeader}>
+              <AlertCircle size={16} />
+              <p className={styles.errorTitle}>Authentication Error</p>
+            </div>
+            <p className={styles.errorMsg}>{error}</p>
+            <button
+              type="button"
+              className={`btn btn-secondary ${styles.returnBtn}`}
+              onClick={() => router.push("/")}
+            >
+              <ArrowLeft size={14} />
+              <span>Return to Dashboard</span>
+            </button>
+          </div>
+        ) : (
+          <div className={styles.statusGroup}>
+            <Loader2 size={20} className="animate-spin" color="var(--accent)" />
+            <p className={styles.statusText}>{status}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 export default function AuthCallbackPage() {
   return (
-    <Suspense fallback={
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        background: "#06080F",
-        color: "#94A3B8",
-        fontFamily: "var(--font-body)"
-      }}>
-        Loading callback...
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className={styles.loadingFallback}>
+          <Loader2 size={24} className="animate-spin" color="var(--accent)" />
+        </div>
+      }
+    >
       <AuthCallbackHandler />
     </Suspense>
   );

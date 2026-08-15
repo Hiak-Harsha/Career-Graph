@@ -3,6 +3,8 @@
 import { useState } from "react";
 import styles from "./GitHubAuthModal.module.css";
 import { apiFetch } from "../../config";
+import { X, Key, Lock, Sparkles } from "lucide-react";
+import { GithubIcon } from "./icons/GithubIcon";
 
 interface GitHubAuthModalProps {
   onClose: () => void;
@@ -72,7 +74,9 @@ export function GitHubAuthModal({ onClose, onSuccess, onRefresh }: GitHubAuthMod
             <h2 className={styles.title}>Connect GitHub</h2>
             <p className={styles.subtitle}>Index your repositories into your career graph</p>
           </div>
-          <button type="button" className={styles.closeBtn} onClick={onClose}>×</button>
+          <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Close">
+            <X size={18} />
+          </button>
         </div>
 
         {/* Tabs */}
@@ -82,14 +86,16 @@ export function GitHubAuthModal({ onClose, onSuccess, onRefresh }: GitHubAuthMod
             className={`${styles.tab} ${activeTab === "token" ? styles.tabActive : ""}`}
             onClick={() => setActiveTab("token")}
           >
-            Personal Access Token
+            <Key size={14} />
+            <span>Personal Access Token</span>
           </button>
           <button
             type="button"
             className={`${styles.tab} ${activeTab === "oauth" ? styles.tabActive : ""}`}
             onClick={() => setActiveTab("oauth")}
           >
-            OAuth Login
+            <GithubIcon size={14} />
+            <span>OAuth Login</span>
           </button>
         </div>
 
@@ -141,14 +147,15 @@ export function GitHubAuthModal({ onClose, onSuccess, onRefresh }: GitHubAuthMod
         ) : (
           <div className={styles.oauthContainer}>
             <p className={styles.oauthText}>
-              Authenticate using GitHub's secure OAuth flow. This requires the backend server to be configured with a valid <code>GITHUB_CLIENT_ID</code> and <code>GITHUB_CLIENT_SECRET</code>.
+              Authenticate using GitHub&apos;s secure OAuth flow. This requires the backend server to be configured with a valid <code>GITHUB_CLIENT_ID</code> and <code>GITHUB_CLIENT_SECRET</code>.
             </p>
-            <div className={styles.actions} style={{ justifyContent: "center" }}>
+            <div className={styles.oauthActions}>
               <button type="button" className="btn btn-secondary" onClick={onClose}>
                 Cancel
               </button>
               <button type="button" className="btn btn-primary" onClick={handleOAuthLogin}>
-                Sign in with GitHub
+                <GithubIcon size={15} />
+                <span>Sign in with GitHub</span>
               </button>
             </div>
           </div>

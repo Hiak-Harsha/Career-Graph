@@ -117,7 +117,10 @@ def get_profile(current_user: User = Depends(get_current_user)):
 def update_profile(payload: UserUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     update_data = payload.dict(exclude_unset=True)
     for key, val in update_data.items():
-        setattr(current_user, key, val)
+        if key == "github_access_token" and val:
+            setattr(current_user, key, encrypt_token(val))
+        else:
+            setattr(current_user, key, val)
     db.commit()
     db.refresh(current_user)
     return current_user

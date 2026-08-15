@@ -22,6 +22,8 @@ class UserUpdate(BaseModel):
     location: Optional[str] = None
     education: Optional[str] = None
     career_goal: Optional[str] = None
+    github_username: Optional[str] = None
+    github_access_token: Optional[str] = None
 
 class UserResponse(UserBase):
     id: UUID

@@ -90,7 +90,12 @@ export function ResumeView({ resumeData, loading, selectedRole, onRoleChange }: 
       {/* Action bar */}
       {resumeData && (
         <div className={styles.actionBar}>
-          <button type="button" className="btn btn-primary" style={{ fontSize: "0.82rem" }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ fontSize: "0.82rem" }}
+            onClick={() => window.print()}
+          >
             Download PDF
           </button>
           <button type="button" className="btn btn-secondary" style={{ fontSize: "0.82rem" }}>

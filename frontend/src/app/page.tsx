@@ -20,8 +20,12 @@ import { CurrentlyBuilding } from "../components/career/CurrentlyBuilding";
 import { EmergingDomains } from "../components/career/EmergingDomains";
 import { ProblemSolvingProfile } from "../components/career/ProblemSolvingProfile";
 
+// Graph
+import { CareerGraphView } from "../components/graph/CareerGraphView";
+
 // Domains & Skills
 import { DomainCard } from "../components/domains/DomainCard";
+import { DomainDrawer } from "../components/domains/DomainDrawer";
 import { SkillProgressView } from "../components/skills/SkillProgressView";
 
 // Review Queue
@@ -206,6 +210,10 @@ export default function CareerGraphApp() {
   const [ideaDesc, setIdeaDesc] = useState("");
   const [ideaMaturity, setIdeaMaturity] = useState<IdeaMaturity>("EARLY");
 
+  // Graph interaction drawer state
+  const [selectedGraphClaim, setSelectedGraphClaim] = useState<Claim | null>(null);
+  const [selectedGraphDomain, setSelectedGraphDomain] = useState<DomainProgress | null>(null);
+
   // GitHub connection modal state
   const [githubModalOpen, setGithubModalOpen] = useState(false);
   const [localError, setLocalError] = useState("");
@@ -337,7 +345,19 @@ export default function CareerGraphApp() {
                   setActiveView={setActiveView}
                 />
               )}
-              {activeView === "graph" && <GraphPlaceholder />}
+              {activeView === "graph" && (
+                <CareerGraphView
+                  projects={projects}
+                  domainProgress={domainProgress}
+                  skillsProgress={skillsProgress}
+                  onSelectProject={(proj) => {
+                    if (proj.claims && proj.claims.length > 0) {
+                      setSelectedGraphClaim(proj.claims[0]);
+                    }
+                  }}
+                  onSelectDomain={(dp) => setSelectedGraphDomain(dp)}
+                />
+              )}
               {activeView === "projects" && <ProjectsView projects={projects} />}
               {activeView === "ideas" && (
                 <IdeasView
@@ -383,6 +403,22 @@ export default function CareerGraphApp() {
           </AnimatePresence>
         )}
       </main>
+
+      {/* Graph-triggered Evidence & Domain Drawers */}
+      {selectedGraphClaim && (
+        <EvidenceDrawer
+          claim={selectedGraphClaim}
+          onClose={() => setSelectedGraphClaim(null)}
+        />
+      )}
+
+      {selectedGraphDomain && (
+        <DomainDrawer
+          dp={selectedGraphDomain}
+          projects={projects}
+          onClose={() => setSelectedGraphDomain(null)}
+        />
+      )}
 
       {githubModalOpen && (
         <GitHubAuthModal
@@ -443,25 +479,6 @@ function DashboardView({
       </div>
 
       <EmergingDomains domainProgress={domainProgress} />
-    </div>
-  );
-}
-
-// ─── Graph placeholder ────────────────────────────────────────────────────────
-
-function GraphPlaceholder() {
-  return (
-    <div className={styles.view}>
-      <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>Career Graph</h1>
-        <p className={styles.pageSubtitle}>Interactive visualization of your professional network</p>
-      </div>
-      <div className={styles.placeholder}>
-        <p className={`section-label ${styles.comingSoonLabel}`}>Coming soon</p>
-        <p className={styles.comingSoonText}>
-          An interactive node graph of your domains, skills, and projects is planned for the next release.
-        </p>
-      </div>
     </div>
   );
 }

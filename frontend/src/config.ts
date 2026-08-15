@@ -31,14 +31,28 @@ async function getDevelopmentToken(): Promise<string | null> {
 
 export async function apiFetch(path: string, options: RequestOptions = {}) {
   const { skipAuth, headers, ...requestOptions } = options;
-  const token = skipAuth ? null : await getDevelopmentToken();
-  const response = await fetch(`${API_BASE}${path}`, {
+  let token = skipAuth ? null : await getDevelopmentToken();
+  let response = await fetch(`${API_BASE}${path}`, {
     ...requestOptions,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
   });
+
+  if (response.status === 401 && !skipAuth) {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(TOKEN_KEY);
+    }
+    token = await getDevelopmentToken();
+    response = await fetch(`${API_BASE}${path}`, {
+      ...requestOptions,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
+    });
+  }
 
   if (!response.ok) throw await apiError(response);
   return response;

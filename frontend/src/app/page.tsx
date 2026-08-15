@@ -40,6 +40,9 @@ import { CandidateIntelligence } from "../components/recruiter/CandidateIntellig
 // Resume
 import { ResumeView } from "../components/resume/ResumeView";
 
+// Portfolio
+import { PortfolioView } from "../components/portfolio/PortfolioView";
+
 // Evidence
 import { EvidenceDrawer } from "../components/evidence/EvidenceDrawer";
 import { GitHubAuthModal } from "../components/ui/GitHubAuthModal";
@@ -56,7 +59,7 @@ import {
 import { GithubIcon } from "../components/ui/icons/GithubIcon";
 
 // Types
-import type { ActiveView, Idea, Claim, Project, DomainProgress, TimelineEntry } from "../types";
+import type { ActiveView, Idea, Claim, Project, DomainProgress, TimelineEntry, PortfolioData } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -189,7 +192,13 @@ export default function CareerGraphApp() {
     clearMessages,
   } = useCareerGraph();
 
-  const { resumeData, loading: resumeLoading, fetchResume } = useResume();
+  const {
+    resumeData,
+    loading: resumeLoading,
+    saving: resumeSaving,
+    fetchResume,
+    saveCurrentResume,
+  } = useResume();
   const { recruiterData, loading: recruiterLoading, fetchMatch } = useRecruiter();
 
   // Fetch role-specific data when view or role changes
@@ -345,6 +354,28 @@ export default function CareerGraphApp() {
                   setActiveView={setActiveView}
                 />
               )}
+              {activeView === "portfolio" && profile && (
+                <PortfolioView
+                  portfolioData={{
+                    profile,
+                    projects,
+                    ideas,
+                    domain_progress: domainProgress,
+                    skills: skillsProgress,
+                    problem_solving_profile: problemSolving || {
+                      frequently_works_with: [],
+                      recurring_patterns_detected: [],
+                    },
+                    timeline,
+                  }}
+                  loading={loading}
+                  onOpenProjectEvidence={(proj) => {
+                    if (proj.claims && proj.claims.length > 0) {
+                      setSelectedGraphClaim(proj.claims[0]);
+                    }
+                  }}
+                />
+              )}
               {activeView === "graph" && (
                 <CareerGraphView
                   projects={projects}
@@ -388,6 +419,8 @@ export default function CareerGraphApp() {
                   loading={resumeLoading}
                   selectedRole={selectedRole}
                   onRoleChange={setSelectedRole}
+                  onSave={saveCurrentResume}
+                  saving={resumeSaving}
                 />
               )}
               {activeView === "recruiter" && (

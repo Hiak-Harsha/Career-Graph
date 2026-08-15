@@ -355,3 +355,155 @@ def test_sync_rate_limiting(client):
     assert res_limit.status_code == 429
     assert "Rate limit exceeded" in res_limit.json()["detail"]
 
+
+def test_resume_crud_persistence(client):
+    # 1. Create a customized resume
+    create_payload = {
+        "title": "Senior Distributed Systems Engineer",
+        "target_role": "Backend Engineer",
+        "variant": "ats",
+        "summary": "Expert in distributed consensus and high-throughput microservices.",
+        "skills": ["Go", "Kubernetes", "PostgreSQL", "Kafka"],
+        "claims": ["Engineered distributed cache layer reducing p99 latency to 4ms"],
+        "projects": [
+            {
+                "id": "11111111-1111-1111-1111-111111111111",
+                "title": "Smart Routing Engine",
+                "description": "High-throughput graph routing",
+                "skills": ["Go", "C++"],
+                "evidence_links": [{"type": "COMMIT", "url": "https://github.com/test", "label": "Commit #1"}],
+                "narrative": "Engineered spatial contraction hierarchy engine",
+                "custom_bullets": ["Engineered spatial contraction hierarchy engine"],
+                "included": True
+            }
+        ],
+        "is_primary": True
+    }
+    res_create = client.post("/api/resumes", json=create_payload)
+    assert res_create.status_code == 200
+    created_data = res_create.json()
+    assert created_data["title"] == "Senior Distributed Systems Engineer"
+    assert created_data["target_role"] == "Backend Engineer"
+    assert created_data["variant"] == "ats"
+    resume_id = created_data["id"]
+
+    # 2. List resumes
+    res_list = client.get("/api/resumes")
+    assert res_list.status_code == 200
+    list_data = res_list.json()
+    assert len(list_data) >= 1
+    assert any(r["id"] == resume_id for r in list_data)
+
+    # 3. Retrieve single resume
+    res_get = client.get(f"/api/resumes/{resume_id}")
+    assert res_get.status_code == 200
+    assert res_get.json()["summary"] == "Expert in distributed consensus and high-throughput microservices."
+
+    # 4. Update resume
+    update_payload = {
+        "title": "Lead Distributed Systems Architect",
+        "summary": "Updated summary with deeper cloud architecture focus.",
+        "skills": ["Go", "Kubernetes", "PostgreSQL", "Kafka", "Rust"]
+    }
+    res_update = client.put(f"/api/resumes/{resume_id}", json=update_payload)
+    assert res_update.status_code == 200
+    assert res_update.json()["title"] == "Lead Distributed Systems Architect"
+    assert "Rust" in res_update.json()["skills"]
+
+    # 5. Delete resume
+    res_delete = client.delete(f"/api/resumes/{resume_id}")
+    assert res_delete.status_code == 200
+    assert res_delete.json()["status"] == "deleted"
+
+    # Verify 404 on deleted resume
+    res_deleted_get = client.get(f"/api/resumes/{resume_id}")
+    assert res_deleted_get.status_code == 404
+
+
+def test_resume_ai_improve(client):
+    res_summary = client.post("/api/resumes/ai-improve", json={
+        "field_type": "summary",
+        "text": "I build web apps and microservices",
+        "target_role": "Backend Engineer"
+    })
+    assert res_summary.status_code == 200
+    summary_data = res_summary.json()
+    assert len(summary_data["improved_text"]) > 0
+    assert len(summary_data["suggestions"]) > 0
+
+    res_bullet = client.post("/api/resumes/ai-improve", json={
+        "field_type": "bullet",
+        "text": "wrote api endpoints for search",
+        "target_role": "Software Engineer"
+    })
+    assert res_bullet.status_code == 200
+    bullet_data = res_bullet.json()
+    assert "Architected and deployed" in bullet_data["improved_text"]
+
+
+def test_profile_details_and_career_history(client):
+    # 1. Add Work Experience
+    exp_payload = {
+        "company": "Stripe",
+        "role": "Senior Infrastructure Engineer",
+        "location": "San Francisco, CA",
+        "start_date": "Jan 2022",
+        "end_date": "Present",
+        "description": "Led core ledger reliability engineering team.",
+        "bullets": ["Architected multi-region failover", "Reduced sync latency by 40%"],
+        "is_current": True
+    }
+    res_exp = client.post("/api/profile/experience", json=exp_payload)
+    assert res_exp.status_code == 200
+    exp_id = res_exp.json()["id"]
+
+    # 2. Add Education
+    edu_payload = {
+        "institution": "University of California, Berkeley",
+        "degree": "B.S. Computer Science",
+        "field_of_study": "Systems & AI",
+        "start_year": "2018",
+        "end_year": "2022",
+        "grade_or_gpa": "3.9 GPA"
+    }
+    res_edu = client.post("/api/profile/education", json=edu_payload)
+    assert res_edu.status_code == 200
+    edu_id = res_edu.json()["id"]
+
+    # 3. Add Certification
+    cert_payload = {
+        "name": "AWS Certified Solutions Architect - Professional",
+        "issuer": "Amazon Web Services",
+        "issue_date": "2024",
+        "credential_url": "https://aws.amazon.com/verification"
+    }
+    res_cert = client.post("/api/profile/certification", json=cert_payload)
+    assert res_cert.status_code == 200
+    cert_id = res_cert.json()["id"]
+
+    # 4. Add Social Link
+    link_payload = {
+        "platform": "linkedin",
+        "url": "https://linkedin.com/in/alexrivera",
+        "label": "LinkedIn Profile"
+    }
+    res_link = client.post("/api/profile/link", json=link_payload)
+    assert res_link.status_code == 200
+    link_id = res_link.json()["id"]
+
+    # 5. Fetch combined profile details
+    res_details = client.get("/api/profile/details")
+    assert res_details.status_code == 200
+    details = res_details.json()
+    assert len(details["work_experiences"]) >= 1
+    assert len(details["educations"]) >= 1
+    assert len(details["certifications"]) >= 1
+    assert len(details["social_links"]) >= 1
+
+    # Cleanup created items
+    assert client.delete(f"/api/profile/experience/{exp_id}").status_code == 200
+    assert client.delete(f"/api/profile/education/{edu_id}").status_code == 200
+    assert client.delete(f"/api/profile/certification/{cert_id}").status_code == 200
+    assert client.delete(f"/api/profile/link/{link_id}").status_code == 200
+
+

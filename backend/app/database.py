@@ -1,10 +1,8 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from backend.app.config import DATABASE_URL
 from backend.app.models import Base, Role
-
-# Default to PostgreSQL database if no database URL is provided
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/career_graph")
 
 # Use check_same_thread=False only for SQLite
 if DATABASE_URL.startswith("sqlite"):
@@ -18,7 +16,7 @@ else:
         with engine.connect() as conn:
             pass
     except Exception as e:
-        print(f"Warning: PostgreSQL connection failed ({e}). Falling back to local SQLite database.")
+        print(f"Warning: Remote database connection failed ({e}). Falling back to local SQLite database.")
         DATABASE_URL = "sqlite:///./career_graph.db"
         engine = create_engine(
             DATABASE_URL, connect_args={"check_same_thread": False}

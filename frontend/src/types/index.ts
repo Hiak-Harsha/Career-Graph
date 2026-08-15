@@ -7,11 +7,53 @@ export interface UserProfile {
   headline?: string;
   bio?: string;
   location?: string;
+  phone?: string;
   github_username?: string;
   career_goal?: string;
   education?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkExperience {
+  id: string;
+  user_id: string;
+  company: string;
+  role: string;
+  location?: string;
+  start_date: string;
+  end_date: string;
+  description?: string;
+  bullets?: string[];
+  is_current?: boolean;
+}
+
+export interface Education {
+  id: string;
+  user_id: string;
+  institution: string;
+  degree: string;
+  field_of_study?: string;
+  start_year?: string;
+  end_year?: string;
+  grade_or_gpa?: string;
+}
+
+export interface Certification {
+  id: string;
+  user_id: string;
+  name: string;
+  issuer: string;
+  issue_date?: string;
+  credential_url?: string;
+}
+
+export interface SocialLink {
+  id: string;
+  user_id: string;
+  platform: string;
+  url: string;
+  label?: string;
 }
 
 export interface Skill {
@@ -171,6 +213,10 @@ export interface PortfolioData {
   skills: SkillProgress[];
   problem_solving_profile: ProblemSolvingProfile;
   timeline: TimelineEntry[];
+  work_experiences?: WorkExperience[];
+  educations?: Education[];
+  certifications?: Certification[];
+  social_links?: SocialLink[];
 }
 
 // ─── Resume Types ────────────────────────────────────────────────────────────
@@ -184,23 +230,56 @@ export interface ResumeEvidenceLink {
 export interface ResumeProject {
   id: string;
   title: string;
-  narrative?: string;
+  description?: string;
+  skills?: string[];
+  narrative: string;
   evidence_links: ResumeEvidenceLink[];
-  selected_reasons?: string[]; // why this project was selected for this role
+  selected_reasons?: string[];
+  included?: boolean;
+  custom_bullets?: string[];
 }
 
 export interface ResumeData {
-  profile: UserProfile;
+  id?: string;
+  title?: string;
   target_role: string;
+  variant?: "ats" | "visual" | string;
+  profile: UserProfile;
   summary?: string;
   projects: ResumeProject[];
   claims: string[];
   skills: string[];
+  experience?: Array<{
+    company: string;
+    role: string;
+    start_date: string;
+    end_date: string;
+    description?: string;
+    bullets?: string[];
+  }>;
+  education?: Array<{
+    institution: string;
+    degree: string;
+    field_of_study?: string;
+    start_year?: string;
+    end_year?: string;
+  }>;
+  certifications?: Array<{
+    name: string;
+    issuer: string;
+    issue_date?: string;
+  }>;
+  links?: Array<{
+    platform: string;
+    url: string;
+    label?: string;
+  }>;
+  is_primary?: boolean;
   evidence_coverage?: number; // 0–1
   claims_verified?: number;
   total_claims?: number;
-  generated_at?: string;
-  graph_version?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // ─── Recruiter Types ─────────────────────────────────────────────────────────
@@ -215,7 +294,7 @@ export interface CriteriaMatch {
 export interface RecruiterData {
   candidate_name?: string;
   role_name: string;
-  overall_match: "Strong Match" | "Moderate Match" | "Weak Match";
+  overall_match: "Strong Match" | "Moderate Match" | "Developing Match" | "Weak Match";
   why_text?: string;
   strengths: string[];
   gaps: string[];
@@ -228,20 +307,11 @@ export interface RecruiterData {
 
 export type RecruiterMatch = RecruiterData;
 
-// ─── Change Feed ─────────────────────────────────────────────────────────────
-
-export interface ChangeFeedEntry {
-  id?: string;
-  timestamp: string;
-  label: string;
-  description?: string;
-  type?: "domain" | "project" | "skill" | "evidence";
-}
-
 // ─── UI State ────────────────────────────────────────────────────────────────
 
 export type ActiveView =
   | "dashboard"
+  | "portfolio"
   | "graph"
   | "projects"
   | "ideas"

@@ -1,14 +1,20 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy import (
-    Column, String, Text, DateTime, ForeignKey, Float, Integer, Date, Table, JSON, Enum
+    Column, String, Text, DateTime, ForeignKey, Float, Integer, Date, Table, JSON, Boolean
 )
-from sqlalchemy.orm import declarative_base, relationship, Mapped, mapped_column
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 Base = declarative_base()
+
+def utc_now():
+    return datetime.now(timezone.utc)
+
+def utc_today():
+    return datetime.now(timezone.utc).date()
 
 class GUID(TypeDecorator):
     """Platform-independent GUID type.
@@ -86,12 +92,13 @@ class User(Base):
     headline = Column(String(255))
     bio = Column(Text)
     location = Column(String(255))
+    phone = Column(String(50))
     education = Column(Text)
     career_goal = Column(Text)
     github_username = Column(String(255), unique=True)
     github_access_token = Column(String(255))
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")
@@ -101,6 +108,11 @@ class User(Base):
     domain_progress = relationship("DomainProgress", back_populates="user", cascade="all, delete-orphan")
     skill_progress = relationship("SkillProgress", back_populates="user", cascade="all, delete-orphan")
     snapshots = relationship("CareerSnapshot", back_populates="user", cascade="all, delete-orphan")
+    resumes = relationship("Resume", back_populates="user", cascade="all, delete-orphan")
+    work_experiences = relationship("WorkExperience", back_populates="user", cascade="all, delete-orphan")
+    educations = relationship("Education", back_populates="user", cascade="all, delete-orphan")
+    certifications = relationship("Certification", back_populates="user", cascade="all, delete-orphan")
+    social_links = relationship("SocialLink", back_populates="user", cascade="all, delete-orphan")
 
 
 class Project(Base):
@@ -118,18 +130,17 @@ class Project(Base):
     demo_url = Column(String(500))
     complexity_score = Column(Float, default=0.0)
     individual_or_team = Column(String(50), default="INDIVIDUAL")
-    sync_hash = Column(String(255), nullable=True)  # Store MD5 hash of (README + files + languages)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    sync_hash = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     user = relationship("User", back_populates="projects")
-    ideas = relationship("Idea", back_populates="parent_project")
+    evidence = relationship("Evidence", back_populates="project", cascade="all, delete-orphan")
+    claims = relationship("Claim", back_populates="project", cascade="all, delete-orphan")
     skills = relationship("Skill", secondary=project_skills, back_populates="projects")
     domains = relationship("Domain", secondary=project_domains, back_populates="projects")
-    claims = relationship("Claim", back_populates="project", cascade="all, delete-orphan")
-    activities = relationship("Activity", back_populates="project")
-    ai_inferences = relationship("AIInference", back_populates="project")
+    ai_inferences = relationship("AIInference", back_populates="project", cascade="all, delete-orphan")
 
 
 class Idea(Base):
@@ -139,15 +150,14 @@ class Idea(Base):
     user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text)
-    status = Column(String(50), default="EXPLORING")  # EXPLORING, PROTOTYPE, MATURING, ABANDONED
-    maturity = Column(String(50), default="EARLY")  # EARLY, MID, MATURE
-    parent_project_id = Column(GUID, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    potential_impact = Column(String(50), default="MEDIUM")  # LOW, MEDIUM, HIGH
+    status = Column(String(50), default="RAW")  # RAW, REFINED, READY_TO_BUILD, CONVERTED
+    converted_to_project_id = Column(GUID, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     user = relationship("User", back_populates="ideas")
-    parent_project = relationship("Project", back_populates="ideas")
 
 
 class Skill(Base):
@@ -155,9 +165,9 @@ class Skill(Base):
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     name = Column(String(255), unique=True, nullable=False)
-    category = Column(String(100))  # LANGUAGE, LIBRARY, FRAMEWORK, DATABASE, CONCEPT, TOOL, CLOUD
-    description = Column(Text)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    category = Column(String(50), default="LIBRARY")  # LANGUAGE, FRAMEWORK, LIBRARY, TOOL, CONCEPT, ARCHITECTURE
+    created_by = Column(String(50), default="DETERMINISTIC")  # DETERMINISTIC, AI, USER
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
     projects = relationship("Project", secondary=project_skills, back_populates="skills")
@@ -170,13 +180,12 @@ class Domain(Base):
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     name = Column(String(255), unique=True, nullable=False)
-    parent_domain_id = Column(GUID, ForeignKey("domains.id", ondelete="SET NULL"), nullable=True)
     description = Column(Text)
-    created_by = Column(String(50), default="SYSTEM")  # SYSTEM, USER, AI_DISCOVERED
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    parent_domain_id = Column(GUID, ForeignKey("domains.id", ondelete="SET NULL"), nullable=True)
+    created_by = Column(String(50), default="AI")  # DETERMINISTIC, AI, USER
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
-    parent = relationship("Domain", remote_side=[id], backref="subdomains")
     projects = relationship("Project", secondary=project_domains, back_populates="domains")
     domain_progress = relationship("DomainProgress", back_populates="domain", cascade="all, delete-orphan")
     role_requirements = relationship("RoleRequirement", back_populates="domain", cascade="all, delete-orphan")
@@ -187,38 +196,23 @@ class Evidence(Base):
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    type = Column(String(50), nullable=False)  # GITHUB_COMMIT, GITHUB_PR, GITHUB_RELEASE, README, DOCUMENT, etc.
-    source = Column(String(255), nullable=False)  # 'github', 'devpost', 'medium', 'user_input'
+    project_id = Column(GUID, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    type = Column(String(50), nullable=False, default="DOCUMENT")  # COMMIT, PR, FILE, DOCUMENT, README, DEMO_URL
+    source = Column(String(100), default="github")
     source_url = Column(String(500))
-    source_identifier = Column(String(255))  # commit hash, PR number, etc.
+    source_identifier = Column(String(255))
     content = Column(Text)
-    captured_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     confidence = Column(Float, default=1.0)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    metadata_json = Column(JSON)  # stores metrics, commit hashes, etc.
+    hash = Column(String(255), unique=True)
+    verified = Column(Boolean, default=True)
+    captured_at = Column(DateTime(timezone=True), default=utc_now)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
     user = relationship("User", back_populates="evidence")
+    project = relationship("Project", back_populates="evidence")
     claims = relationship("Claim", secondary=claim_evidence, back_populates="evidence")
-
-
-class Claim(Base):
-    __tablename__ = "claims"
-
-    id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    project_id = Column(GUID, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
-    claim = Column(Text, nullable=False)
-    claim_type = Column(String(100))  # TECHNICAL_ACHIEVEMENT, DOMAIN_EXPERTISE, ARCHITECTURE, OPTIMIZATION
-    confidence = Column(Float, default=1.0)
-    origin = Column(String(50), default="AI_PROPOSED")  # DETERMINISTIC, AI_PROPOSED
-    status = Column(String(50), default="ai_suggested")  # ai_suggested, user_confirmed, user_rejected
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    user = relationship("User", back_populates="claims")
-    project = relationship("Project", back_populates="claims")
-    evidence = relationship("Evidence", secondary=claim_evidence, back_populates="claims")
 
 
 class Activity(Base):
@@ -226,16 +220,35 @@ class Activity(Base):
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    project_id = Column(GUID, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
-    type = Column(String(50), nullable=False)  # COMMIT, PR_CREATED, PR_MERGED, RELEASE, POST_CREATED, IDEA_CREATED
-    source = Column(String(255), nullable=False)  # 'github', 'medium', etc.
-    source_id = Column(String(255))
+    project_id = Column(GUID, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    type = Column(String(50), default="COMMIT")  # COMMIT, PR, ISSUE, MERGE, DEMO_RUN
+    activity_type = Column(String(50), nullable=True)
+    source = Column(String(100), default="github")
+    source_id = Column(String(255), nullable=True)
     timestamp = Column(DateTime(timezone=True), nullable=False)
-    activity_metadata = Column("metadata", JSON)  # stores arbitrary JSON data
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    activity_metadata = Column(JSON, nullable=True)
+    metadata_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class Claim(Base):
+    __tablename__ = "claims"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    project_id = Column(GUID, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    claim = Column(Text, nullable=False)
+    claim_type = Column(String(50), default="TECHNICAL_ACHIEVEMENT")  # ARCHITECTURE, PERFORMANCE, SCALE, INNOVATION
+    confidence = Column(Float, default=1.0)
+    origin = Column(String(50), default="DETERMINISTIC")  # DETERMINISTIC, AI_PROPOSED, USER_DECLARED
+    status = Column(String(50), default="user_confirmed")  # ai_suggested, user_confirmed, user_rejected
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
-    project = relationship("Project", back_populates="activities")
+    user = relationship("User", back_populates="claims")
+    project = relationship("Project", back_populates="claims")
+    evidence = relationship("Evidence", secondary=claim_evidence, back_populates="claims")
 
 
 class DomainProgress(Base):
@@ -253,7 +266,7 @@ class DomainProgress(Base):
     trajectory = Column(String(50), default="STABLE")  # DECREASING, STABLE, INCREASING
     first_detected = Column(DateTime(timezone=True))
     last_active = Column(DateTime(timezone=True))
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     user = relationship("User", back_populates="domain_progress")
@@ -275,7 +288,7 @@ class SkillProgress(Base):
     current_level = Column(String(50), default="EXPOSURE")  # EXPOSURE, PRACTICING, PROFICIENT, STRONG, ADVANCED
     first_seen = Column(DateTime(timezone=True))
     last_used = Column(DateTime(timezone=True))
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     user = relationship("User", back_populates="skill_progress")
@@ -287,13 +300,13 @@ class CareerSnapshot(Base):
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    snapshot_date = Column(Date, default=datetime.utcnow().date)
+    snapshot_date = Column(Date, default=utc_today)
     dominant_domains = Column(JSON)  # stores list of dominant domains
     emerging_domains = Column(JSON)  # stores list of emerging domains
     strongest_skills = Column(JSON)  # stores list of strongest skills
     active_projects = Column(JSON)  # stores list of active projects
     career_direction = Column(Text)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
     user = relationship("User", back_populates="snapshots")
@@ -305,7 +318,7 @@ class Role(Base):
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     name = Column(String(255), unique=True, nullable=False)
     description = Column(Text)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
     role_requirements = relationship("RoleRequirement", back_populates="role", cascade="all, delete-orphan")
@@ -336,7 +349,115 @@ class AIInference(Base):
     input_payload = Column(Text, nullable=False)
     response_payload = Column(Text, nullable=False)
     error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
     project = relationship("Project", back_populates="ai_inferences")
+
+
+# --- New Persisted Resume & Career History Models ---
+
+class Resume(Base):
+    __tablename__ = "resumes"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(255), nullable=False, default="Master Resume")
+    target_role = Column(String(255), nullable=False, default="Software Engineer")
+    variant = Column(String(50), nullable=False, default="visual")  # 'ats' or 'visual'
+    summary = Column(Text, nullable=False, default="")
+    skills_json = Column(JSON, default=list)
+    claims_json = Column(JSON, default=list)
+    projects_json = Column(JSON, default=list)
+    experience_json = Column(JSON, default=list)
+    education_json = Column(JSON, default=list)
+    certifications_json = Column(JSON, default=list)
+    links_json = Column(JSON, default=list)
+    is_primary = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    user = relationship("User", back_populates="resumes")
+    versions = relationship("ResumeVersion", back_populates="resume", cascade="all, delete-orphan")
+
+
+class ResumeVersion(Base):
+    __tablename__ = "resume_versions"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    resume_id = Column(GUID, ForeignKey("resumes.id", ondelete="CASCADE"), nullable=False)
+    version_number = Column(Integer, nullable=False, default=1)
+    change_summary = Column(String(255), nullable=True)
+    snapshot_payload = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+
+    # Relationships
+    resume = relationship("Resume", back_populates="versions")
+
+
+class WorkExperience(Base):
+    __tablename__ = "work_experiences"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    company = Column(String(255), nullable=False)
+    role = Column(String(255), nullable=False)
+    location = Column(String(255), nullable=True)
+    start_date = Column(String(50), nullable=False)
+    end_date = Column(String(50), nullable=False, default="Present")
+    description = Column(Text, nullable=True)
+    bullets = Column(JSON, default=list)
+    is_current = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    user = relationship("User", back_populates="work_experiences")
+
+
+class Education(Base):
+    __tablename__ = "educations"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    institution = Column(String(255), nullable=False)
+    degree = Column(String(255), nullable=False)
+    field_of_study = Column(String(255), nullable=True)
+    start_year = Column(String(20), nullable=True)
+    end_year = Column(String(20), nullable=True)
+    grade_or_gpa = Column(String(50), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    user = relationship("User", back_populates="educations")
+
+
+class Certification(Base):
+    __tablename__ = "certifications"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    issuer = Column(String(255), nullable=False)
+    issue_date = Column(String(50), nullable=True)
+    credential_url = Column(String(500), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+
+    # Relationships
+    user = relationship("User", back_populates="certifications")
+
+
+class SocialLink(Base):
+    __tablename__ = "social_links"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    platform = Column(String(100), nullable=False)  # 'linkedin', 'github', 'portfolio', 'twitter', 'phone'
+    url = Column(String(500), nullable=False)
+    label = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+
+    # Relationships
+    user = relationship("User", back_populates="social_links")

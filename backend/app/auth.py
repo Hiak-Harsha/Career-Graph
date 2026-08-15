@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import httpx
 from typing import Optional
 import jwt
@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from backend.app.config import (
     JWT_SECRET, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES,
-    GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI
+    GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI,
+    ALLOW_ANONYMOUS_DEV_LOGIN, APP_ENV
 )
 from backend.app.database import get_db
 from backend.app.models import User
@@ -39,10 +40,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=Fals
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
+    now_utc = datetime.now(timezone.utc)
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = now_utc + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = now_utc + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
@@ -54,16 +56,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         headers={"WWW-Authenticate": "Bearer"},
     )
     if not token:
-        from backend.app.config import APP_ENV
-        user_count = db.query(User).count()
-        if APP_ENV == "production" or user_count > 1:
+        if not ALLOW_ANONYMOUS_DEV_LOGIN or APP_ENV == "production":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication token missing. Please log in.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        # For simplicity in testing/dev, if no token is provided, return the first user in the DB.
-        # This prevents lockouts when working locally, but requires OAuth in staging/prod.
+        # Development fallback when explicitly allowed
         user = db.query(User).first()
         if user:
             return user

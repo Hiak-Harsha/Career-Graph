@@ -1,18 +1,25 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styles from "./ResumeView.module.css";
-import type { ResumeData, Claim } from "../../types";
+import type { ResumeData, Claim, ResumeProject } from "../../types";
 import { AtsPreviewModal } from "./AtsPreviewModal";
 import { EvidenceDrawer } from "../evidence/EvidenceDrawer";
+import { exportAtsPdf, exportVisualPdf } from "../../utils/pdfExport";
 import {
   Download,
   FileText,
   ShieldCheck,
   Check,
   Loader2,
-  ExternalLink,
+  Sparkles,
+  Edit3,
+  Save,
+  Plus,
+  Trash2,
   Eye,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 
 const ROLES = [
@@ -27,6 +34,8 @@ interface ResumeViewProps {
   loading: boolean;
   selectedRole: string;
   onRoleChange: (role: string) => void;
+  onSave?: (data: Partial<ResumeData>) => Promise<any>;
+  saving?: boolean;
 }
 
 export function ResumeView({
@@ -34,52 +43,31 @@ export function ResumeView({
   loading,
   selectedRole,
   onRoleChange,
+  onSave,
+  saving = false,
 }: ResumeViewProps) {
+  const [activeVariant, setActiveVariant] = useState<"visual" | "ats">("visual");
   const [viewMode, setViewMode] = useState<"standard" | "evidence">("standard");
+  const [isEditing, setIsEditing] = useState(false);
   const [atsModalOpen, setAtsModalOpen] = useState(false);
-  const [exportingPdf, setExportingPdf] = useState(false);
   const [drawerClaim, setDrawerClaim] = useState<Claim | null>(null);
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
-  const evidencePct = resumeData?.evidence_coverage
-    ? Math.round(resumeData.evidence_coverage * 100)
-    : null;
+  // Local editable state
+  const [summary, setSummary] = useState(resumeData?.summary || "");
+  const [projects, setProjects] = useState<ResumeProject[]>(resumeData?.projects || []);
+  const [skills, setSkills] = useState<string[]>(resumeData?.skills || []);
+  const [aiPolishing, setAiPolishing] = useState(false);
 
-  const handleExportPdf = async () => {
-    const element = document.getElementById("resume-document");
-    if (!element || !resumeData) return;
-
-    setExportingPdf(true);
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#FFFFFF",
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(
-        `${resumeData.profile.name.replace(/\s+/g, "_")}_${resumeData.target_role.replace(/\s+/g, "_")}_Resume.pdf`
-      );
-    } catch (err) {
-      console.error("PDF generation failed:", err);
-      // Fallback to print
-      window.print();
-    } finally {
-      setExportingPdf(false);
+  useEffect(() => {
+    if (resumeData) {
+      setSummary(resumeData.summary || "");
+      setProjects(resumeData.projects || []);
+      setSkills(resumeData.skills || []);
     }
-  };
+  }, [resumeData]);
 
   const handleCitationClick = (label: string, url: string, contextTitle: string) => {
-    // Construct verifiable claim object for EvidenceDrawer
     const syntheticClaim: Claim = {
       id: `citation-${label}`,
       claim: `${contextTitle}: ${label}`,
@@ -98,300 +86,428 @@ export function ResumeView({
     setDrawerClaim(syntheticClaim);
   };
 
+  const handleSave = async () => {
+    if (!onSave || !resumeData) return;
+    try {
+      await onSave({
+        ...resumeData,
+        summary,
+        projects,
+        skills,
+        target_role: selectedRole,
+        variant: activeVariant,
+      });
+      setSavedSuccess(true);
+      setIsEditing(false);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch {
+      // handled
+    }
+  };
+
+  const handleAiPolishSummary = async () => {
+    setAiPolishing(true);
+    try {
+      const res = await fetch("/api/resumes/ai-improve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          field_type: "summary",
+          text: summary,
+          target_role: selectedRole,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSummary(data.improved_text);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setAiPolishing(false);
+    }
+  };
+
+  const toggleProjectInclusion = (index: number) => {
+    setProjects((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], included: next[index].included === false ? true : false };
+      return next;
+    });
+  };
+
+  const handleUpdateBullet = (pIndex: number, bIndex: number, text: string) => {
+    setProjects((prev) => {
+      const next = [...prev];
+      const bullets = [...(next[pIndex].custom_bullets || next[pIndex].narrative.split(" • "))];
+      bullets[bIndex] = text;
+      next[pIndex] = { ...next[pIndex], custom_bullets: bullets, narrative: bullets.join(" • ") };
+      return next;
+    });
+  };
+
+  const handleAddBullet = (pIndex: number) => {
+    setProjects((prev) => {
+      const next = [...prev];
+      const bullets = [...(next[pIndex].custom_bullets || next[pIndex].narrative.split(" • "))];
+      bullets.push("Engineered new feature with quantifiable metrics");
+      next[pIndex] = { ...next[pIndex], custom_bullets: bullets, narrative: bullets.join(" • ") };
+      return next;
+    });
+  };
+
+  const handleDeleteBullet = (pIndex: number, bIndex: number) => {
+    setProjects((prev) => {
+      const next = [...prev];
+      const bullets = [...(next[pIndex].custom_bullets || next[pIndex].narrative.split(" • "))];
+      bullets.splice(bIndex, 1);
+      next[pIndex] = { ...next[pIndex], custom_bullets: bullets, narrative: bullets.join(" • ") };
+      return next;
+    });
+  };
+
+  if (loading && !resumeData) {
+    return (
+      <div className={styles.loadingBox}>
+        <Loader2 className="animate-spin" size={32} />
+        <p>Analyzing Career Graph and generating tailored resume...</p>
+      </div>
+    );
+  }
+
+  if (!resumeData) return null;
+
+  const currentPayload: ResumeData = {
+    ...resumeData,
+    summary,
+    projects,
+    skills,
+    target_role: selectedRole,
+    variant: activeVariant,
+  };
+
   return (
-    <div className={styles.root}>
-      {/* Page header */}
-      <div className={styles.pageHeader}>
-        <div>
-          <h1 className={styles.pageTitle}>Resume</h1>
-          <p className={styles.pageSubtitle}>
-            Role-tailored projection of your career graph with verifiable evidence
-          </p>
+    <div className={styles.container}>
+      {/* Top Toolbar */}
+      <div className={styles.topBar}>
+        <div className={styles.controlsGroup}>
+          <div className={styles.roleSelectGroup}>
+            <label htmlFor="role-select" className={styles.roleLabel}>
+              Role
+            </label>
+            <select
+              id="role-select"
+              className={styles.roleSelect}
+              value={selectedRole}
+              onChange={(e) => onRoleChange(e.target.value)}
+            >
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Variant Switcher */}
+          <div className={styles.modeToggle} role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeVariant === "visual"}
+              className={`${styles.modeBtn} ${activeVariant === "visual" ? styles.modeBtnActive : ""}`}
+              onClick={() => setActiveVariant("visual")}
+            >
+              Visual View
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeVariant === "ats"}
+              className={`${styles.modeBtn} ${activeVariant === "ats" ? styles.modeBtnActive : ""}`}
+              onClick={() => setActiveVariant("ats")}
+            >
+              ATS Pure Text
+            </button>
+          </div>
+
+          {/* Evidence Toggle in Visual Mode */}
+          {activeVariant === "visual" && (
+            <div className={styles.modeToggle} role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === "standard"}
+                className={`${styles.modeBtn} ${viewMode === "standard" ? styles.modeBtnActive : ""}`}
+                onClick={() => setViewMode("standard")}
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === "evidence"}
+                className={`${styles.modeBtn} ${viewMode === "evidence" ? styles.modeBtnActive : ""}`}
+                onClick={() => setViewMode("evidence")}
+              >
+                <ShieldCheck size={13} />
+                Evidence View
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className={styles.roleSelector}>
-          <label className="section-label" htmlFor="resume-role-select">
-            Target role
-          </label>
-          <select
-            id="resume-role-select"
-            className={`input-base ${styles.roleSelect}`}
-            value={selectedRole}
-            onChange={(e) => onRoleChange(e.target.value)}
+        <div className={styles.actionsGroup}>
+          {onSave && (
+            <>
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${isEditing ? styles.actionBtnPrimary : ""}`}
+                onClick={() => setIsEditing(!isEditing)}
+              >
+                <Edit3 size={14} />
+                {isEditing ? "Done Editing" : "Edit Resume"}
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${savedSuccess ? styles.actionBtnSuccess : styles.actionBtnPrimary}`}
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : savedSuccess ? (
+                  <Check size={14} />
+                ) : (
+                  <Save size={14} />
+                )}
+                {savedSuccess ? "Saved!" : "Save"}
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            className={styles.actionBtn}
+            onClick={() => setAtsModalOpen(true)}
+            title="Preview plain text for copy-pasting into ATS forms"
           >
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+            <FileText size={14} />
+            ATS Text
+          </button>
+
+          <button
+            type="button"
+            className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
+            onClick={() => {
+              if (activeVariant === "ats") {
+                exportAtsPdf(currentPayload);
+              } else {
+                exportVisualPdf(currentPayload);
+              }
+            }}
+          >
+            <Download size={14} />
+            {activeVariant === "ats" ? "Export ATS PDF" : "Export PDF"}
+          </button>
         </div>
       </div>
 
-      {/* Generation metadata */}
-      {resumeData && (
-        <div className={styles.metaBar}>
-          <span className={styles.metaItem}>
-            Generated from <strong>Career Graph</strong>
-            {resumeData.generated_at && (
-              <> · {new Date(resumeData.generated_at).toLocaleDateString()}</>
-            )}
+      {isEditing && (
+        <div className={styles.editModeBar}>
+          <span>
+            <strong>Edit Mode Active:</strong> You can modify your summary, refine bullet points, and choose which projects to include.
           </span>
+          <button
+            type="button"
+            className={styles.btnSmall}
+            onClick={handleAiPolishSummary}
+            disabled={aiPolishing}
+          >
+            <Sparkles size={12} />
+            {aiPolishing ? "Enhancing..." : "AI Enhance Summary"}
+          </button>
+        </div>
+      )}
 
-          {evidencePct !== null && (
-            <div className={styles.coverageBlock}>
-              <span className={styles.coverageLabel}>Evidence coverage</span>
-              <div className={styles.coverageBar}>
-                <div
-                  className={styles.coverageFill}
-                  style={{ width: `${evidencePct}%` }}
-                  role="meter"
-                  aria-valuenow={evidencePct}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                />
-              </div>
-              <span className={styles.coveragePct}>{evidencePct}%</span>
-            </div>
-          )}
-
-          {resumeData.claims_verified !== undefined &&
-            resumeData.total_claims !== undefined && (
-              <span className={styles.metaItem}>
-                Claims verified:{" "}
-                <strong>
-                  {resumeData.claims_verified} / {resumeData.total_claims}
-                </strong>
-              </span>
+      {/* Rendered Resume Document */}
+      <div
+        id="resume-document"
+        className={`${styles.resumePaper} ${activeVariant === "ats" ? styles.atsPaper : ""}`}
+      >
+        {/* Header */}
+        <div className={styles.resumeHeader}>
+          <h1 className={styles.headerName}>{resumeData.profile?.name || "Candidate"}</h1>
+          <div className={styles.headerRole}>{selectedRole}</div>
+          <div className={styles.headerContact}>
+            {resumeData.profile?.email && <span>{resumeData.profile.email}</span>}
+            {resumeData.profile?.location && <span>• {resumeData.profile.location}</span>}
+            {resumeData.profile?.github_username && (
+              <span>• github.com/{resumeData.profile.github_username}</span>
             )}
-
-          <span className={styles.metaItem}>
-            Projects selected: <strong>{resumeData.projects.length}</strong>
-          </span>
-        </div>
-      )}
-
-      {/* Action bar & Mode toggle */}
-      {resumeData && (
-        <div className={styles.actionBar}>
-          <div className={styles.actionBtnGroup}>
-            <button
-              type="button"
-              className={`btn btn-primary ${styles.actionBtn}`}
-              onClick={handleExportPdf}
-              disabled={exportingPdf}
-            >
-              {exportingPdf ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Download size={14} />
-              )}
-              <span>{exportingPdf ? "Generating PDF…" : "Download PDF"}</span>
-            </button>
-
-            <button
-              type="button"
-              className={`btn btn-secondary ${styles.actionBtn}`}
-              onClick={() => setAtsModalOpen(true)}
-            >
-              <FileText size={14} />
-              <span>ATS Preview</span>
-            </button>
-          </div>
-
-          {/* Segmented View Mode Toggle */}
-          <div className={styles.viewModeToggle} role="tablist" aria-label="Resume view mode">
-            <button
-              type="button"
-              className={`${styles.viewModeBtn} ${
-                viewMode === "standard" ? styles.viewModeBtnActive : ""
-              }`}
-              onClick={() => setViewMode("standard")}
-              role="tab"
-              aria-selected={viewMode === "standard"}
-            >
-              <Eye size={12} />
-              <span>Standard View</span>
-            </button>
-            <button
-              type="button"
-              className={`${styles.viewModeBtn} ${
-                viewMode === "evidence" ? styles.viewModeBtnActive : ""
-              }`}
-              onClick={() => setViewMode("evidence")}
-              role="tab"
-              aria-selected={viewMode === "evidence"}
-            >
-              <ShieldCheck size={12} />
-              <span>Evidence View</span>
-            </button>
           </div>
         </div>
-      )}
 
-      {loading && (
-        <div className={styles.loading}>
-          <p className={styles.loadingText}>Generating resume from career graph…</p>
-        </div>
-      )}
-
-      {/* Resume document */}
-      {resumeData && !loading && (
-        <div className={styles.document} id="resume-document">
-          {/* Header */}
-          <div className={styles.docHeader}>
-            <div>
-              <h2 className={styles.docName}>{resumeData.profile.name}</h2>
-              <p className={styles.docRole}>{resumeData.target_role}</p>
-            </div>
-            <div className={styles.docContact}>
-              {resumeData.profile.email && <span>{resumeData.profile.email}</span>}
-              {resumeData.profile.github_username && (
-                <span>github.com/{resumeData.profile.github_username}</span>
-              )}
-              {resumeData.profile.location && (
-                <span>{resumeData.profile.location}</span>
-              )}
-            </div>
-          </div>
-
-          {/* Summary */}
-          {resumeData.summary && (
-            <div className={styles.docSection}>
-              <p className={styles.docBody}>{resumeData.summary}</p>
-            </div>
+        {/* Professional Summary */}
+        <div className={styles.section}>
+          <h2 className={styles.sectionTitle}>Professional Summary</h2>
+          {isEditing ? (
+            <textarea
+              className={styles.editableTextarea}
+              rows={3}
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+            />
+          ) : (
+            <p className={styles.summaryText}>{summary}</p>
           )}
+        </div>
 
-          {/* Projects */}
-          {resumeData.projects.length > 0 && (
-            <div className={styles.docSection}>
-              <h3 className={styles.docSectionTitle}>
-                Verifiable Projects &amp; Experience
-              </h3>
-              {resumeData.projects.map((p, pIdx) => (
-                <div key={p.id} className={styles.docProject}>
-                  <div className={styles.docProjHead}>
-                    <h4 className={styles.docProjTitle}>
-                      <span>{p.title}</span>
-                      {viewMode === "evidence" && (
-                        <button
-                          type="button"
-                          className={styles.citationChip}
-                          onClick={() =>
-                            handleCitationClick(
-                              p.evidence_links[0]?.label ?? `Project Verification`,
-                              p.evidence_links[0]?.url ?? "",
-                              p.title
-                            )
-                          }
-                          title="Click to inspect evidence in drawer"
-                        >
-                          <ShieldCheck size={10} />
-                          <span>Proof #{pIdx + 1}</span>
-                        </button>
-                      )}
-                    </h4>
-                    <div className={styles.evidenceBadges}>
-                      {p.evidence_links.map((link, i) => (
-                        <span
-                          key={i}
-                          className={`${styles.evidenceBadge} ${
-                            viewMode === "evidence" ? styles.evidenceBadgeClickable : ""
-                          }`}
-                          onClick={() => {
-                            if (viewMode === "evidence") {
-                              handleCitationClick(link.label, link.url, p.title);
-                            }
-                          }}
-                        >
-                          {link.label.length > 20
-                            ? link.label.substring(0, 20) + "…"
-                            : link.label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  {p.narrative && (
-                    <p className={styles.docProjNarrative}>{p.narrative}</p>
-                  )}
+        {/* Skills */}
+        <div className={styles.section}>
+          <h2 className={styles.sectionTitle}>Technical Skills</h2>
+          <div className={styles.skillsRow}>
+            <span className={styles.skillsLabel}>Core Competencies: </span>
+            {skills.map((s, idx) => (
+              <React.Fragment key={idx}>
+                <span>{s}</span>
+                {idx < skills.length - 1 && ", "}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
 
-                  {/* Why selected — internal annotation */}
-                  {p.selected_reasons && p.selected_reasons.length > 0 && (
-                    <div className={styles.selectionAnnotation}>
-                      <p className={styles.annotationLabel}>Selected because</p>
-                      <div className={styles.annotationReasons}>
-                        {p.selected_reasons.map((reason, i) => (
-                          <span key={i} className={styles.annotationReason}>
-                            <Check size={11} />
-                            <span>{reason}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Projects */}
+        <div className={styles.section}>
+          <h2 className={styles.sectionTitle}>
+            {activeVariant === "ats" ? "Technical Experience & Projects" : "Verified Projects & Experience"}
+          </h2>
 
-          {/* Claims */}
-          {resumeData.claims.length > 0 && (
-            <div className={styles.docSection}>
-              <h3 className={styles.docSectionTitle}>
-                Evidence-Backed Achievements
-              </h3>
-              <ul className={styles.claimsList}>
-                {resumeData.claims.map((claim, i) => (
-                  <li key={i} className={styles.claimItem}>
-                    <span>{claim}</span>
-                    {viewMode === "evidence" && (
+          {projects.map((p, pIdx) => {
+            const isIncluded = p.included !== false;
+            if (!isEditing && !isIncluded) return null;
+
+            const bullets = p.custom_bullets?.length
+              ? p.custom_bullets
+              : (p.narrative || "").split(" • ").filter(Boolean);
+
+            return (
+              <div
+                key={p.id || pIdx}
+                className={styles.projectCard}
+                style={{ opacity: isIncluded ? 1 : 0.4 }}
+              >
+                <div className={styles.projectHeader}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {isEditing && (
                       <button
                         type="button"
-                        className={styles.citationChip}
-                        onClick={() =>
-                          handleCitationClick(
-                            `Claim #${i + 1}`,
-                            "",
-                            claim
-                          )
-                        }
-                        title="Click to inspect proof in drawer"
+                        style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}
+                        onClick={() => toggleProjectInclusion(pIdx)}
                       >
-                        <ShieldCheck size={10} />
-                        <span>[{i + 1}]</span>
+                        {isIncluded ? <CheckSquare size={16} color="#2563eb" /> : <Square size={16} color="#94a3b8" />}
                       </button>
                     )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+                    <h3 className={styles.projectTitle}>{p.title}</h3>
+                    {viewMode === "evidence" && activeVariant === "visual" && (
+                      <span
+                        className={`${styles.evidenceBadge} ${styles.evidenceBadgeClickable}`}
+                        onClick={() => {
+                          if (p.evidence_links?.[0]) {
+                            handleCitationClick(p.evidence_links[0].label, p.evidence_links[0].url, p.title);
+                          }
+                        }}
+                      >
+                        <ShieldCheck size={10} />
+                        Proof #{pIdx + 1}
+                      </span>
+                    )}
+                  </div>
 
-          {/* Skills */}
-          {resumeData.skills.length > 0 && (
-            <div className={styles.docSection}>
-              <h3 className={styles.docSectionTitle}>Demonstrated Skills</h3>
-              <div className={styles.skillsGrid}>
-                {resumeData.skills.map((skill, i) => (
-                  <span key={i} className={styles.skillTag}>
-                    {skill}
-                  </span>
-                ))}
+                  {p.skills && p.skills.length > 0 && (
+                    <span className={styles.projectTech}>[{p.skills.slice(0, 4).join(", ")}]</span>
+                  )}
+                </div>
+
+                {isEditing ? (
+                  <div style={{ marginTop: 8 }}>
+                    {bullets.map((b, bIdx) => (
+                      <div key={bIdx} className={styles.bulletEditRow}>
+                        <input
+                          type="text"
+                          className={styles.bulletInput}
+                          value={b}
+                          onChange={(e) => handleUpdateBullet(pIdx, bIdx, e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className={`${styles.btnSmall} ${styles.btnSmallDanger}`}
+                          onClick={() => handleDeleteBullet(pIdx, bIdx)}
+                          title="Delete bullet"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className={styles.btnSmall}
+                      onClick={() => handleAddBullet(pIdx)}
+                      style={{ marginTop: 4 }}
+                    >
+                      <Plus size={12} /> Add Bullet Point
+                    </button>
+                  </div>
+                ) : (
+                  <ul className={styles.bulletList}>
+                    {bullets.map((b, bIdx) => (
+                      <li key={bIdx} className={styles.bulletItem}>
+                        {b}
+                        {viewMode === "evidence" && activeVariant === "visual" && (
+                          <span
+                            className={styles.citationChip}
+                            onClick={() => {
+                              const link = p.evidence_links?.[bIdx % (p.evidence_links.length || 1)];
+                              handleCitationClick(link?.label || `Proof-${bIdx + 1}`, link?.url || "#", p.title);
+                            }}
+                          >
+                            [{bIdx + 1}]
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })}
         </div>
-      )}
 
-      {/* ATS Plain Text Modal */}
-      {atsModalOpen && resumeData && (
+        {/* Claims / Verified Achievements */}
+        {resumeData.claims && resumeData.claims.length > 0 && (
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Key Technical Achievements</h2>
+            <ul className={styles.bulletList}>
+              {resumeData.claims.map((claim, idx) => (
+                <li key={idx} className={styles.bulletItem}>
+                  {claim}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* Plain Text ATS Preview Modal */}
+      {atsModalOpen && (
         <AtsPreviewModal
-          resumeData={resumeData}
+          resumeData={currentPayload}
           onClose={() => setAtsModalOpen(false)}
         />
       )}
 
-      {/* Evidence Drawer triggered from citation chips */}
+      {/* Evidence Verification Drawer */}
       {drawerClaim && (
         <EvidenceDrawer
           claim={drawerClaim}

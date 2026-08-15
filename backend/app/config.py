@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # App configs
-APP_ENV = os.getenv("APP_ENV", "development")
+APP_ENV = os.getenv("APP_ENV", "development").lower()
 JWT_SECRET = os.getenv("JWT_SECRET", "super_secret_jwt_signing_key_change_me_in_prod")
 
 if APP_ENV == "production" and JWT_SECRET == "super_secret_jwt_signing_key_change_me_in_prod":
@@ -14,8 +14,11 @@ if APP_ENV == "production" and JWT_SECRET == "super_secret_jwt_signing_key_chang
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 1 week
 
-# Database config
+# Database config - default to local sqlite
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./career_graph.db")
+
+# Allow anonymous dev login: defaults to True in development unless explicitly disabled
+ALLOW_ANONYMOUS_DEV_LOGIN = os.getenv("ALLOW_ANONYMOUS_DEV_LOGIN", "true" if APP_ENV == "development" else "false").lower() in ("true", "1", "yes")
 
 # GitHub OAuth configs
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")

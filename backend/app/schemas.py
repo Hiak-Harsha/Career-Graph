@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, HttpUrl
+from pydantic import BaseModel, EmailStr, HttpUrl, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 from uuid import UUID
@@ -10,6 +10,7 @@ class UserBase(BaseModel):
     headline: Optional[str] = None
     bio: Optional[str] = None
     location: Optional[str] = None
+    phone: Optional[str] = None
     education: Optional[str] = None
     career_goal: Optional[str] = None
     github_username: Optional[str] = None
@@ -20,6 +21,7 @@ class UserUpdate(BaseModel):
     headline: Optional[str] = None
     bio: Optional[str] = None
     location: Optional[str] = None
+    phone: Optional[str] = None
     education: Optional[str] = None
     career_goal: Optional[str] = None
     github_username: Optional[str] = None
@@ -29,9 +31,71 @@ class UserResponse(UserBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
+# Structured Career History Schemas
+class WorkExperienceCreate(BaseModel):
+    company: str
+    role: str
+    location: Optional[str] = None
+    start_date: str
+    end_date: str = "Present"
+    description: Optional[str] = None
+    bullets: List[str] = []
+    is_current: bool = False
+
+class WorkExperienceResponse(WorkExperienceCreate):
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class EducationCreate(BaseModel):
+    institution: str
+    degree: str
+    field_of_study: Optional[str] = None
+    start_year: Optional[str] = None
+    end_year: Optional[str] = None
+    grade_or_gpa: Optional[str] = None
+
+class EducationResponse(EducationCreate):
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class CertificationCreate(BaseModel):
+    name: str
+    issuer: str
+    issue_date: Optional[str] = None
+    credential_url: Optional[str] = None
+
+class CertificationResponse(CertificationCreate):
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class SocialLinkCreate(BaseModel):
+    platform: str
+    url: str
+    label: Optional[str] = None
+
+class SocialLinkResponse(SocialLinkCreate):
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class ProfileDetailsResponse(BaseModel):
+    profile: UserResponse
+    work_experiences: List[WorkExperienceResponse]
+    educations: List[EducationResponse]
+    certifications: List[CertificationResponse]
+    social_links: List[SocialLinkResponse]
+    model_config = ConfigDict(from_attributes=True)
 
 # Skill Schemas
 class SkillResponse(BaseModel):
@@ -39,9 +103,7 @@ class SkillResponse(BaseModel):
     name: str
     category: Optional[str] = None
     description: Optional[str] = None
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Domain Schemas
 class DomainResponse(BaseModel):
@@ -50,9 +112,7 @@ class DomainResponse(BaseModel):
     parent_domain_id: Optional[UUID] = None
     description: Optional[str] = None
     created_by: str
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Project Schemas
 class ProjectBase(BaseModel):
@@ -77,9 +137,7 @@ class ProjectResponse(ProjectBase):
     domains: List[DomainResponse] = []
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Idea Schemas
 class IdeaBase(BaseModel):
@@ -97,9 +155,7 @@ class IdeaResponse(IdeaBase):
     user_id: UUID
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Evidence Schemas
 class EvidenceResponse(BaseModel):
@@ -111,9 +167,7 @@ class EvidenceResponse(BaseModel):
     content: Optional[str] = None
     captured_at: datetime
     confidence: float
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Claim Schemas
 class ClaimResponse(BaseModel):
@@ -124,9 +178,7 @@ class ClaimResponse(BaseModel):
     status: str
     project_id: Optional[UUID] = None
     evidence: List[EvidenceResponse] = []
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Progress Schemas
 class DomainProgressResponse(BaseModel):
@@ -140,9 +192,7 @@ class DomainProgressResponse(BaseModel):
     trajectory: str
     first_detected: Optional[datetime] = None
     last_active: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class SkillProgressResponse(BaseModel):
     skill: SkillResponse
@@ -155,9 +205,7 @@ class SkillProgressResponse(BaseModel):
     current_level: str
     first_seen: Optional[datetime] = None
     last_used: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Portfolio response wrapper
 class PortfolioResponse(BaseModel):
@@ -168,8 +216,12 @@ class PortfolioResponse(BaseModel):
     skills: List[SkillProgressResponse]
     problem_solving_profile: Dict[str, Any]
     timeline: List[Dict[str, Any]]
+    work_experiences: List[WorkExperienceResponse] = []
+    educations: List[EducationResponse] = []
+    certifications: List[CertificationResponse] = []
+    social_links: List[SocialLinkResponse] = []
 
-# Dynamic Resume Schemas
+# Persisted Resume Schemas
 class ResumeItem(BaseModel):
     id: UUID
     title: str
@@ -177,14 +229,51 @@ class ResumeItem(BaseModel):
     skills: List[str]
     evidence_links: List[Dict[str, str]]
     narrative: str
+    selected_reasons: Optional[List[str]] = []
+    included: Optional[bool] = True
+    custom_bullets: Optional[List[str]] = []
 
 class ResumeResponse(BaseModel):
+    id: Optional[UUID] = None
     target_role: str
     profile: UserResponse
     summary: str
     projects: List[ResumeItem]
     skills: List[str]
     claims: List[str]
+    variant: Optional[str] = "visual"
+    title: Optional[str] = "Master Resume"
+    experience: Optional[List[Dict[str, Any]]] = []
+    education: Optional[List[Dict[str, Any]]] = []
+    certifications: Optional[List[Dict[str, Any]]] = []
+    links: Optional[List[Dict[str, Any]]] = []
+    is_primary: Optional[bool] = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+class ResumeSaveRequest(BaseModel):
+    title: Optional[str] = "Master Resume"
+    target_role: Optional[str] = "Software Engineer"
+    variant: Optional[str] = "visual"
+    summary: Optional[str] = ""
+    skills: Optional[List[str]] = []
+    claims: Optional[List[str]] = []
+    projects: Optional[List[ResumeItem]] = []
+    experience: Optional[List[Dict[str, Any]]] = []
+    education: Optional[List[Dict[str, Any]]] = []
+    certifications: Optional[List[Dict[str, Any]]] = []
+    links: Optional[List[Dict[str, Any]]] = []
+    is_primary: Optional[bool] = False
+
+class AIImproveRequest(BaseModel):
+    field_type: str  # 'summary' or 'bullet'
+    text: str
+    target_role: Optional[str] = "Software Engineer"
+    context: Optional[str] = None
+
+class AIImproveResponse(BaseModel):
+    improved_text: str
+    suggestions: Optional[List[str]] = []
 
 # Recruiter Role Match Schemas
 class CriteriaMatch(BaseModel):

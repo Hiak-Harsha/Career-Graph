@@ -354,11 +354,12 @@ def update_domain_progress_scores(db: Session, user_id: str):
     if not user:
         return
         
+    projects = db.query(Project).filter(Project.user_id == user_id).all()
     domains = db.query(Domain).all()
     for domain in domains:
         # ONLY look at user_confirmed project mappings for progress scoring!
         user_confirmed_projects = []
-        for p in user.projects:
+        for p in projects:
             # Query junction table mapping
             mapping = db.execute(
                 project_domains.select().where(
@@ -426,7 +427,7 @@ def update_domain_progress_scores(db: Session, user_id: str):
         recent_activity_count = db.query(Activity).filter(
             Activity.user_id == user_id,
             Activity.project_id.in_([p.id for p in user_confirmed_projects]),
-            Activity.timestamp >= datetime.utcnow() - timedelta(days=90)
+            Activity.timestamp >= datetime.now(timezone.utc) - timedelta(days=90)
         ).count()
         activity_score = min(recent_activity_count / 30.0, 1.0)
         
@@ -465,7 +466,7 @@ def update_domain_progress_scores(db: Session, user_id: str):
             prog = DomainProgress(
                 user_id=user_id,
                 domain_id=domain.id,
-                first_detected=datetime.utcnow()
+                first_detected=datetime.now(timezone.utc)
             )
             db.add(prog)
             
@@ -477,7 +478,8 @@ def update_domain_progress_scores(db: Session, user_id: str):
         prog.current_level = level
         prog.trajectory = trajectory
         prog.last_active = last_date
-        prog.updated_at = datetime.utcnow()
+        prog.updated_at = datetime.now(timezone.utc)
+    db.commit()
 
 
 def update_skill_progress_scores(db: Session, user_id: str):
@@ -486,10 +488,11 @@ def update_skill_progress_scores(db: Session, user_id: str):
     if not user:
         return
         
+    projects = db.query(Project).filter(Project.user_id == user_id).all()
     skills = db.query(Skill).all()
     for skill in skills:
         user_confirmed_projects = []
-        for p in user.projects:
+        for p in projects:
             mapping = db.execute(
                 project_skills.select().where(
                     project_skills.c.project_id == p.id,
@@ -517,7 +520,7 @@ def update_skill_progress_scores(db: Session, user_id: str):
         depth_val = sum(p.complexity_score for p in user_confirmed_projects)
         depth_score = min((depth_val / max(evidence_count, 1)) / 10.0, 1.0)
         
-        last_date = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=365)
+        last_date = datetime.now(timezone.utc) - timedelta(days=365)
         for p in user_confirmed_projects:
             p_date = p.completed_at or p.started_at or p.created_at
             if p_date:
@@ -562,7 +565,7 @@ def update_skill_progress_scores(db: Session, user_id: str):
             prog = SkillProgress(
                 user_id=user_id,
                 skill_id=skill.id,
-                first_seen=datetime.utcnow()
+                first_seen=datetime.now(timezone.utc)
             )
             db.add(prog)
             
@@ -573,12 +576,13 @@ def update_skill_progress_scores(db: Session, user_id: str):
         prog.current_level = level
         prog.trajectory = trajectory
         prog.last_used = last_date
-        prog.updated_at = datetime.utcnow()
+        prog.updated_at = datetime.now(timezone.utc)
+    db.commit()
 
 
 def save_career_snapshot(db: Session, user_id: str):
     """Saves a daily career snapshot of domains, skills, projects, and trajectory."""
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     
     domains_progress = db.query(DomainProgress).filter(DomainProgress.user_id == user_id).all()
     skills_progress = db.query(SkillProgress).filter(SkillProgress.user_id == user_id).all()
@@ -730,7 +734,7 @@ def sync_github_project(db: Session, user: User, repo_data: Dict[str, Any], deta
             user_id=user.id,
             title=repo_data["name"],
             repository_url=repo_data["html_url"],
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         db.add(project)
         db.flush() # Populate ID
@@ -871,6 +875,7 @@ def sync_github_project(db: Session, user: User, repo_data: Dict[str, Any], deta
                 if not file_ev:
                     file_ev = Evidence(
                         user_id=user.id,
+                        project_id=project.id,
                         type="DOCUMENT",
                         source="github",
                         source_url=f"{project.repository_url}/blob/main/{filename}",
@@ -914,22 +919,28 @@ def sync_github_project(db: Session, user: User, repo_data: Dict[str, Any], deta
 
     # B. Ingest Commits with uniqueness check
     for commit in details.get("commits", [])[:5]:
-        commit_url = f"{project.repository_url}/commit/{commit['sha']}"
+        sha_val = commit.get("sha") or commit.get("hash") or "unknown_sha"
+        commit_url = commit.get("url") or f"{project.repository_url}/commit/{sha_val}"
         commit_ev = db.query(Evidence).filter(
             Evidence.user_id == user_id_str,
             Evidence.type == "GITHUB_COMMIT",
-            Evidence.source_identifier == commit["sha"]
+            Evidence.source_identifier == sha_val
         ).first()
         
+        commit_date_str = commit.get("date") or commit.get("timestamp")
+        captured_dt = datetime.fromisoformat(commit_date_str.replace("Z", "+00:00")) if commit_date_str else datetime.now(timezone.utc)
+        author_name = commit.get("author") or user.name
+
         if not commit_ev:
             commit_ev = Evidence(
                 user_id=user.id,
+                project_id=project.id,
                 type="GITHUB_COMMIT",
                 source="github",
                 source_url=commit_url,
-                source_identifier=commit["sha"],
-                content=f"Commit: {commit['message']} (by {commit['author']})",
-                captured_at=datetime.fromisoformat(commit["date"].replace("Z", "+00:00")),
+                source_identifier=sha_val,
+                content=f"Commit: {commit.get('message', '')} (by {author_name})",
+                captured_at=captured_dt,
                 confidence=1.0
             )
             db.add(commit_ev)
@@ -938,7 +949,7 @@ def sync_github_project(db: Session, user: User, repo_data: Dict[str, Any], deta
         # Ingest Activities with uniqueness check
         act_exists = db.query(Activity).filter(
             Activity.user_id == user_id_str,
-            Activity.source_id == commit["sha"]
+            Activity.source_id == sha_val
         ).first()
         
         if not act_exists:
@@ -947,11 +958,11 @@ def sync_github_project(db: Session, user: User, repo_data: Dict[str, Any], deta
                 project_id=project.id,
                 type="COMMIT",
                 source="github",
-                source_id=commit["sha"],
-                timestamp=datetime.fromisoformat(commit["date"].replace("Z", "+00:00")),
+                source_id=sha_val,
+                timestamp=captured_dt,
                 activity_metadata={
-                    "message": commit["message"],
-                    "author": commit["author"],
+                    "message": commit.get("message", ""),
+                    "author": author_name,
                     "url": commit_url
                 }
             )

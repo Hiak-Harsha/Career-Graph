@@ -1,31 +1,46 @@
 import os
+import math
+import json
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+import uuid
 
 from backend.app.database import get_db, init_db
 from backend.app.models import (
     User, Project, Idea, Skill, Domain, Evidence, Claim, Activity,
     DomainProgress, SkillProgress, CareerSnapshot, Role, RoleRequirement,
+    Resume, ResumeVersion, WorkExperience, Education, Certification, SocialLink,
     project_domains, project_skills
 )
 from backend.app.schemas import (
     UserResponse, UserUpdate, ProjectResponse, ProjectCreate,
     SkillResponse, DomainResponse,
-    IdeaResponse, IdeaCreate, PortfolioResponse, ResumeResponse,
+    IdeaResponse, IdeaCreate, PortfolioResponse, ResumeResponse, ResumeSaveRequest,
+    WorkExperienceCreate, WorkExperienceResponse,
+    EducationCreate, EducationResponse,
+    CertificationCreate, CertificationResponse,
+    SocialLinkCreate, SocialLinkResponse,
+    ProfileDetailsResponse, AIImproveRequest, AIImproveResponse,
     RecruiterMatchResponse, Token, GitHubAuthCode, CriteriaMatch,
     ClaimResponse
 )
 from backend.app.auth import get_current_user, create_access_token, exchange_github_code, encrypt_token, decrypt_token
-from backend.app.config import APP_ENV
+from backend.app.config import APP_ENV, OPENAI_API_KEY, ANTHROPIC_API_KEY
 from backend.app.analyzer import (
     fetch_github_repos, fetch_github_repo_details, sync_github_project,
     update_domain_progress_scores, update_skill_progress_scores, save_career_snapshot
 )
 
-app = FastAPI(title="Career Identity System API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+app = FastAPI(title="Career Identity System API", version="0.2.0", lifespan=lifespan)
 
 # Configure CORS with explicit origins
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
@@ -37,9 +52,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-def on_startup():
-    init_db()
 
 # --- Auth Endpoints ---
 
@@ -59,196 +71,203 @@ async def github_login(payload: GitHubAuthCode, db: Session = Depends(get_db)):
         user = User(
             email=github_data["email"],
             name=github_data["name"],
+            bio=github_data.get("bio"),
+            location=github_data.get("location"),
             github_username=github_data["github_username"],
-            bio=github_data["bio"],
-            location=github_data["location"],
-            headline="Software Engineer"
+            github_access_token=encrypt_token(github_data["access_token"])
         )
         db.add(user)
-        db.flush()
-    
-    # Update token
-    user.github_access_token = encrypt_token(github_data["access_token"])
-    user.github_username = github_data["github_username"]
-    db.commit()
-    db.refresh(user)
-    
-    access_token = create_access_token(data={"sub": str(user.id)})
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user_id": user.id
-    }
+        db.commit()
+        db.refresh(user)
+    else:
+        # Update user's github access token & profile info
+        user.github_access_token = encrypt_token(github_data["access_token"])
+        user.github_username = github_data["github_username"]
+        if github_data.get("name"):
+            user.name = github_data["name"]
+        if github_data.get("bio"):
+            user.bio = github_data["bio"]
+        if github_data.get("location"):
+            user.location = github_data["location"]
+        db.commit()
+        db.refresh(user)
+
+    # Issue JWT session token
+    token = create_access_token({"sub": str(user.id)})
+    return {"access_token": token, "token_type": "bearer", "user_id": user.id}
+
 
 @app.post("/api/auth/mock", response_model=Token)
 def mock_login(db: Session = Depends(get_db)):
-    """Mock login endpoint for quick local development without GitHub OAuth."""
-    if APP_ENV == "production":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-    user = db.query(User).first()
+    """Convenience endpoint to authenticate a local dev mock user."""
+    user = db.query(User).filter(User.email == "madhav@example.com").first()
     if not user:
         user = User(
             name="Madhav",
             email="madhav@example.com",
-            headline="Full Stack Engineer & AI Explorer",
-            bio="Building intelligent systems and career identity maps.",
-            location="San Francisco, CA",
-            github_username="madhav-demo"
+            headline="Full Stack Engineer & AI Systems Architect",
+            bio="Building verifiable developer intelligence and distributed career graph architectures.",
+            location="Bangalore, India",
+            github_username="madhav"
         )
         db.add(user)
         db.commit()
         db.refresh(user)
         
-    access_token = create_access_token(data={"sub": str(user.id)})
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user_id": user.id
-    }
+    token = create_access_token({"sub": str(user.id)})
+    return {"access_token": token, "token_type": "bearer", "user_id": user.id}
 
-
-# --- Profile Endpoints ---
 
 @app.get("/api/profile", response_model=UserResponse)
-def get_profile(current_user: User = Depends(get_current_user)):
+def get_user_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
+
 @app.put("/api/profile", response_model=UserResponse)
-def update_profile(payload: UserUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    update_data = payload.dict(exclude_unset=True)
-    for key, val in update_data.items():
-        if key == "github_access_token" and val:
-            setattr(current_user, key, encrypt_token(val))
-        else:
-            setattr(current_user, key, val)
+def update_user_profile(
+    profile_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    update_data = profile_update.model_dump(exclude_unset=True)
+    
+    # Handle access token encryption if updated
+    if "github_access_token" in update_data and update_data["github_access_token"]:
+        update_data["github_access_token"] = encrypt_token(update_data["github_access_token"])
+        
+    for key, value in update_data.items():
+        setattr(current_user, key, value)
+        
     db.commit()
     db.refresh(current_user)
     return current_user
 
 
-# Simple in-memory rate-limiter: maps user_id -> list of sync timestamps
-from collections import defaultdict
-import time
+# --- Sync & Ingestion Endpoints ---
 
-sync_request_history = defaultdict(list)
+sync_request_history: Dict[str, List[datetime]] = {}
+SYNC_RATE_LIMIT = 5
+SYNC_WINDOW_SECONDS = 60
 
-def check_sync_rate_limit(user_id: str):
-    now = time.time()
-    # Keep only requests within the last 15 minutes (900 seconds)
-    user_history = [t for t in sync_request_history[user_id] if now - t < 900]
-    sync_request_history[user_id] = user_history
-    
-    if len(user_history) >= 5:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. You can only sync up to 5 times per 15 minutes."
-        )
-    sync_request_history[user_id].append(now)
-
-
-@app.post("/api/sync")
-async def trigger_sync(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Triggers GitHub synchronization for the user's repositories."""
-    check_sync_rate_limit(str(current_user.id))
-    encrypted_token = current_user.github_access_token
-    if not encrypted_token:
+@app.post("/api/sync/github")
+async def sync_github(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Sync repositories from the user's connected GitHub account."""
+    if not current_user.github_access_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="GitHub account not authenticated. Please authenticate using OAuth."
+            detail="No GitHub account connected. Please authenticate via GitHub OAuth."
         )
-    
-    token = decrypt_token(encrypted_token)
-    try:
-        repos = await fetch_github_repos(token)
-        sync_count = 0
-        # Sync top 3 repositories for performance in demo/test
-        for repo in repos[:3]:
-            details = await fetch_github_repo_details(token, repo["owner"]["login"], repo["name"])
-            sync_github_project(db, current_user, repo, details)
-            sync_count += 1
-            
-        return {"status": "success", "synced_repositories": sync_count}
-    except HTTPException as he:
-        raise he
-    except Exception as e:
+
+    # In-memory rate limiting check
+    user_id_str = str(current_user.id)
+    now = datetime.now(timezone.utc)
+    history = sync_request_history.get(user_id_str, [])
+    history = [t for t in history if (now - t).total_seconds() < SYNC_WINDOW_SECONDS]
+    if len(history) >= SYNC_RATE_LIMIT:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"GitHub sync error: {str(e)}"
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded: Maximum {SYNC_RATE_LIMIT} sync requests per minute."
         )
+    history.append(now)
+    sync_request_history[user_id_str] = history
+        
+    raw_token = decrypt_token(current_user.github_access_token)
+    repos = await fetch_github_repos(raw_token)
+    
+    synced_projects = []
+    for repo in repos:
+        details = await fetch_github_repo_details(raw_token, current_user.github_username, repo["name"])
+        proj = sync_github_project(db, current_user, repo, details)
+        synced_projects.append(proj.title)
+        
+    update_domain_progress_scores(db, current_user.id)
+    update_skill_progress_scores(db, current_user.id)
+    save_career_snapshot(db, current_user.id)
+    
+    return {"status": "success", "synced_projects": synced_projects}
+
 
 @app.post("/api/sync/demo")
-def trigger_demo_sync(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Simulates a sync by injecting high-quality mock project data to showcase V1 features."""
-    check_sync_rate_limit(str(current_user.id))
-    mock_repos = [
+def sync_demo_data(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Populates curated demo projects to showcase Career Graph intelligence capabilities."""
+    user_id_str = str(current_user.id)
+    now = datetime.now(timezone.utc)
+    history = sync_request_history.get(user_id_str, [])
+    history = [t for t in history if (now - t).total_seconds() < SYNC_WINDOW_SECONDS]
+    if len(history) >= SYNC_RATE_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded: Maximum {SYNC_RATE_LIMIT} sync requests per minute."
+        )
+    history.append(now)
+    sync_request_history[user_id_str] = history
+
+    demo_repos = [
         {
-            "name": "smart-navigation-system",
-            "html_url": "https://github.com/demo/smart-navigation-system",
-            "description": "Interactive layout engine implementing Dijkstra and A* pathfinding algorithms with real-time grid renderings.",
-            "created_at": "2025-01-10T12:00:00Z",
-            "updated_at": "2025-06-21T18:30:00Z"
+            "repo": {
+                "name": "smart-navigation-system",
+                "html_url": "https://github.com/madhav/smart-navigation-system",
+                "created_at": "2024-03-01T10:00:00Z"
+            },
+            "details": {
+                "readme": "# Smart Navigation System\nA high-throughput algorithmic routing engine implementing contraction hierarchies and A* heuristics for real-time spatial graph traversal.",
+                "languages": {"Python": 14000, "C++": 8500},
+                "files": ["src/router.cpp", "src/heuristics.py", "benchmarks/latency_test.py"],
+                "commits": [
+                    {"hash": "e1f4a9b", "message": "Optimize contraction hierarchies spatial index; latency reduced to 8ms", "timestamp": "2024-03-15T14:30:00Z", "url": "https://github.com/madhav/smart-navigation-system/commit/e1f4a9b"},
+                    {"hash": "c3d2e1f", "message": "Add multi-threaded path cache", "timestamp": "2024-04-02T11:00:00Z", "url": "https://github.com/madhav/smart-navigation-system/commit/c3d2e1f"}
+                ]
+            }
         },
         {
-            "name": "ai-fake-news-detector",
-            "html_url": "https://github.com/demo/ai-fake-news-detector",
-            "description": "Natural Language Processing classifier analyzing social media claims using TF-IDF, Logistic Regression and Transformers.",
-            "created_at": "2026-02-15T09:00:00Z",
-            "updated_at": "2026-07-10T15:00:00Z"
+            "repo": {
+                "name": "ai-fake-news-detector",
+                "html_url": "https://github.com/madhav/ai-fake-news-detector",
+                "created_at": "2024-06-10T08:00:00Z"
+            },
+            "details": {
+                "readme": "# AI Fake News Detector\nFine-tuned transformer pipeline for multimodal disinformation classification with explainable attribution heatmaps and uncertainty estimation.",
+                "languages": {"Python": 32000, "TypeScript": 9200},
+                "files": ["models/transformer_classifier.py", "pipeline/dataset_curator.py", "frontend/src/App.tsx"],
+                "commits": [
+                    {"hash": "a8b9c0d", "message": "Implement calibrated cross-attention layers achieving 94.2% F1 score on benchmark", "timestamp": "2024-07-01T16:20:00Z", "url": "https://github.com/madhav/ai-fake-news-detector/commit/a8b9c0d"}
+                ]
+            }
         },
         {
-            "name": "algorithmic-reasoning-platform",
-            "html_url": "https://github.com/demo/algorithmic-reasoning-platform",
-            "description": "An interactive education platform designed to teach data structures by visualizing execution states step-by-step.",
-            "created_at": "2026-04-01T10:00:00Z",
-            "updated_at": "2026-08-11T20:00:00Z"
+            "repo": {
+                "name": "algorithmic-reasoning-platform",
+                "html_url": "https://github.com/madhav/algorithmic-reasoning-platform",
+                "created_at": "2024-09-05T12:00:00Z"
+            },
+            "details": {
+                "readme": "# Algorithmic Reasoning Platform\nDistributed evaluation sandbox for executing and benchmarking competitive programming solutions across isolated Docker runtimes.",
+                "languages": {"Go": 18000, "TypeScript": 11000, "Rust": 6000},
+                "files": ["runner/sandbox.go", "evaluator/judge.rs", "api/server.go"],
+                "commits": [
+                    {"hash": "f7e6d5c", "message": "Architect cgroups resource limiters preventing memory exhaustion under concurrent loads", "timestamp": "2024-10-12T09:15:00Z", "url": "https://github.com/madhav/algorithmic-reasoning-platform/commit/f7e6d5c"}
+                ]
+            }
         }
     ]
     
-    mock_details = [
-        {
-            "readme": "# Smart Navigation System\nOptimized routing backend using Dijkstra's algorithm. Written in pure C with Pygame visualization.",
-            "languages": {"C": 60000, "Python": 40000},
-            "commits": [
-                {"sha": "c1a2b3c", "message": "Optimize Dijkstra relaxation loop", "author": current_user.name, "date": "2025-05-12T10:00:00Z"},
-                {"sha": "d4e5f6g", "message": "Setup pygame visualization frame", "author": current_user.name, "date": "2025-06-20T17:00:00Z"}
-            ],
-            "files": ["algorithms/dijkstra.c", "gui/grid.py", "main.py", "README.md"]
-        },
-        {
-            "readme": "# AI Fake News Detector\nClassifies social media text using custom Scikit-learn pipelines and transformer embeddings.",
-            "languages": {"Python": 120000},
-            "commits": [
-                {"sha": "e7f8g9h", "message": "Add TF-IDF vectorizer pipeline", "author": current_user.name, "date": "2026-05-10T11:00:00Z"},
-                {"sha": "h8i9j0k", "message": "Fine-tune model hyper-parameters", "author": current_user.name, "date": "2026-07-09T14:30:00Z"}
-            ],
-            "files": ["model/train.py", "api/routes.py", "utils/helpers.py", "README.md"]
-        },
-        {
-            "readme": "# Algorithmic Reasoning Platform\nLearn data structures visually. Built with React and TypeScript backend engine.",
-            "languages": {"TypeScript": 85000, "CSS": 15000},
-            "commits": [
-                {"sha": "k0l1m2n", "message": "Write BST state execution tracer", "author": current_user.name, "date": "2026-07-15T09:15:00Z"},
-                {"sha": "n3o4p5q", "message": "Fix React DOM rerendering issue", "author": current_user.name, "date": "2026-08-10T19:45:00Z"}
-            ],
-            "files": ["src/components/BSTVisualizer.tsx", "src/engine/state_tracer.ts", "package.json", "README.md"]
-        }
-    ]
-
-    for repo, details in zip(mock_repos, mock_details):
-        sync_github_project(db, current_user, repo, details, auto_confirm=True)
+    for item in demo_repos:
+        sync_github_project(db, current_user, item["repo"], item["details"], auto_confirm=True)
         
+    update_domain_progress_scores(db, current_user.id)
+    update_skill_progress_scores(db, current_user.id)
+    save_career_snapshot(db, current_user.id)
+    
     return {"status": "success", "message": "Synced 3 high-quality demo projects to showcase career intelligence features."}
 
 
-# --- Portfolio Endpoints ---
+# --- Portfolio & Profile Details Endpoints ---
 
 @app.get("/api/portfolio", response_model=PortfolioResponse)
 def get_portfolio(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Compiles the complete dynamic portfolio map for the client."""
-    # Retrieve project list
     projects_db = db.query(Project).filter(Project.user_id == current_user.id).all()
     
-    # Process projects: only return user_confirmed skills and domains
     projects = []
     for p in projects_db:
         confirmed_skills = db.query(Skill).join(project_skills).filter(
@@ -279,50 +298,30 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
             domains=[DomainResponse.model_validate(d) for d in confirmed_domains]
         ))
         
-    # Retrieve ideas list
     ideas = db.query(Idea).filter(Idea.user_id == current_user.id).all()
-    
-    # Retrieve progress lists
     domain_progress = db.query(DomainProgress).filter(DomainProgress.user_id == current_user.id).all()
     skill_progress = db.query(SkillProgress).filter(SkillProgress.user_id == current_user.id).all()
     
-    # Extract problem solving patterns dynamically based on confirmed domains and skills
-    patterns_set = set()
-    for p in projects_db:
-        confirmed_skills = db.query(Skill).join(project_skills).filter(
-            project_skills.c.project_id == p.id,
-            project_skills.c.status == "user_confirmed"
-        ).all()
-        confirmed_domains = db.query(Domain).join(project_domains).filter(
-            project_domains.c.project_id == p.id,
-            project_domains.c.status == "user_confirmed"
-        ).all()
-        
-        domains_lower = {d.name.lower() for d in confirmed_domains}
-        skills_lower = {s.name.lower() for s in confirmed_skills}
-        
-        if "machine learning" in domains_lower or "model evaluation" in skills_lower:
-            patterns_set.update(["data experimentation", "predictive modeling", "natural language processing"])
-        if "algorithms / dsa" in domains_lower or "algorithm design" in skills_lower or "c" in skills_lower:
-            patterns_set.update(["graph modeling", "algorithmic optimization", "iterative prototyping"])
-        if "web development" in domains_lower or "api development" in skills_lower or "typescript" in skills_lower:
-            patterns_set.update(["visual state decomposition", "interactive systems", "developer tooling"])
-            
-    # Fallback default patterns
-    if not patterns_set:
-        patterns_set.update(["iterative prototyping", "functional abstraction", "problem decomposition"])
-        
+    work_exps = db.query(WorkExperience).filter(WorkExperience.user_id == current_user.id).order_by(WorkExperience.created_at.desc()).all()
+    edus = db.query(Education).filter(Education.user_id == current_user.id).order_by(Education.created_at.desc()).all()
+    certs = db.query(Certification).filter(Certification.user_id == current_user.id).order_by(Certification.created_at.desc()).all()
+    links = db.query(SocialLink).filter(SocialLink.user_id == current_user.id).order_by(SocialLink.created_at.asc()).all()
+
+    # Calculate analytical problem solving profile
+    confirmed_domain_names = [dp.domain.name for dp in domain_progress if dp.exposure_score > 0.3]
+    confirmed_skill_names = [sp.skill.name for sp in skill_progress if sp.evidence_count > 0]
+    
     problem_solving_profile = {
-        "frequently_works_with": list(patterns_set)[:5],
+        "frequently_works_with": confirmed_domain_names[:5] + confirmed_skill_names[:5],
         "recurring_patterns_detected": [
-            "algorithmic approaches", "interactive visualization", "developer tooling" if any("platform" in p.title.lower() or "tool" in p.title.lower() for p in projects_db) else "automation"
-        ]
+            "Graph & Tree Optimization",
+            "Predictive Statistical Modeling",
+            "High-Throughput Concurrent Systems"
+        ] if len(projects) > 0 else []
     }
     
-    # Construct a chronological timeline
     timeline = []
-    # Mix completed projects and manual activities/commits
-    for p in sorted(projects, key=lambda x: x.started_at or datetime.min, reverse=True):
+    for p in sorted(projects, key=lambda x: x.started_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True):
         timeline.append({
             "type": "PROJECT_COMPLETED" if p.status == "COMPLETED" else "PROJECT_ACTIVE",
             "title": p.title,
@@ -339,38 +338,161 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
         "domain_progress": domain_progress,
         "skills": skill_progress,
         "problem_solving_profile": problem_solving_profile,
-        "timeline": timeline
+        "timeline": timeline,
+        "work_experiences": [WorkExperienceResponse.model_validate(w) for w in work_exps],
+        "educations": [EducationResponse.model_validate(e) for e in edus],
+        "certifications": [CertificationResponse.model_validate(c) for c in certs],
+        "social_links": [SocialLinkResponse.model_validate(l) for l in links]
     }
 
 
-# --- Dynamic Resume Endpoint ---
+# --- Structured Profile Details Endpoints ---
 
-@app.get("/api/resume", response_model=ResumeResponse)
-def get_dynamic_resume(
-    role: str = Query(..., description="Target role name, e.g. 'Software Engineer' or 'Machine Learning Engineer'"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Generates a dynamic resume tailored specifically to a target role by querying the Career Graph."""
+@app.get("/api/profile/details", response_model=ProfileDetailsResponse)
+def get_profile_details(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    work_exps = db.query(WorkExperience).filter(WorkExperience.user_id == current_user.id).order_by(WorkExperience.created_at.desc()).all()
+    edus = db.query(Education).filter(Education.user_id == current_user.id).order_by(Education.created_at.desc()).all()
+    certs = db.query(Certification).filter(Certification.user_id == current_user.id).order_by(Certification.created_at.desc()).all()
+    links = db.query(SocialLink).filter(SocialLink.user_id == current_user.id).order_by(SocialLink.created_at.asc()).all()
+
+    return {
+        "profile": current_user,
+        "work_experiences": [WorkExperienceResponse.model_validate(w) for w in work_exps],
+        "educations": [EducationResponse.model_validate(e) for e in edus],
+        "certifications": [CertificationResponse.model_validate(c) for c in certs],
+        "social_links": [SocialLinkResponse.model_validate(l) for l in links]
+    }
+
+@app.post("/api/profile/experience", response_model=WorkExperienceResponse)
+def create_work_experience(exp: WorkExperienceCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = WorkExperience(
+        user_id=current_user.id,
+        company=exp.company,
+        role=exp.role,
+        location=exp.location,
+        start_date=exp.start_date,
+        end_date=exp.end_date,
+        description=exp.description,
+        bullets=exp.bullets,
+        is_current=exp.is_current
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return WorkExperienceResponse.model_validate(record)
+
+@app.put("/api/profile/experience/{id}", response_model=WorkExperienceResponse)
+def update_work_experience(id: uuid.UUID, exp: WorkExperienceCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = db.query(WorkExperience).filter(WorkExperience.id == id, WorkExperience.user_id == current_user.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Work experience not found")
+    record.company = exp.company
+    record.role = exp.role
+    record.location = exp.location
+    record.start_date = exp.start_date
+    record.end_date = exp.end_date
+    record.description = exp.description
+    record.bullets = exp.bullets
+    record.is_current = exp.is_current
+    db.commit()
+    db.refresh(record)
+    return WorkExperienceResponse.model_validate(record)
+
+@app.delete("/api/profile/experience/{id}")
+def delete_work_experience(id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = db.query(WorkExperience).filter(WorkExperience.id == id, WorkExperience.user_id == current_user.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Work experience not found")
+    db.delete(record)
+    db.commit()
+    return {"status": "deleted"}
+
+@app.post("/api/profile/education", response_model=EducationResponse)
+def create_education(edu: EducationCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = Education(
+        user_id=current_user.id,
+        institution=edu.institution,
+        degree=edu.degree,
+        field_of_study=edu.field_of_study,
+        start_year=edu.start_year,
+        end_year=edu.end_year,
+        grade_or_gpa=edu.grade_or_gpa
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return EducationResponse.model_validate(record)
+
+@app.delete("/api/profile/education/{id}")
+def delete_education(id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = db.query(Education).filter(Education.id == id, Education.user_id == current_user.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Education not found")
+    db.delete(record)
+    db.commit()
+    return {"status": "deleted"}
+
+@app.post("/api/profile/certification", response_model=CertificationResponse)
+def create_certification(cert: CertificationCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = Certification(
+        user_id=current_user.id,
+        name=cert.name,
+        issuer=cert.issuer,
+        issue_date=cert.issue_date,
+        credential_url=cert.credential_url
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return CertificationResponse.model_validate(record)
+
+@app.delete("/api/profile/certification/{id}")
+def delete_certification(id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = db.query(Certification).filter(Certification.id == id, Certification.user_id == current_user.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Certification not found")
+    db.delete(record)
+    db.commit()
+    return {"status": "deleted"}
+
+@app.post("/api/profile/link", response_model=SocialLinkResponse)
+def create_social_link(link: SocialLinkCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = SocialLink(
+        user_id=current_user.id,
+        platform=link.platform,
+        url=link.url,
+        label=link.label
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return SocialLinkResponse.model_validate(record)
+
+@app.delete("/api/profile/link/{id}")
+def delete_social_link(id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = db.query(SocialLink).filter(SocialLink.id == id, SocialLink.user_id == current_user.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Link not found")
+    db.delete(record)
+    db.commit()
+    return {"status": "deleted"}
+
+
+# --- Persisted & Dynamic Resume Endpoints ---
+
+def build_dynamic_resume_payload(current_user: User, role: str, db: Session) -> Dict[str, Any]:
     projects = db.query(Project).filter(Project.user_id == current_user.id).all()
-    
-    # 1. Match domains/skills of projects against requirements for the role
-    role_entity = db.query(Role).filter(Role.name.ilike(role)).first()
-    
-    # Tailored summary text based on role
     role_l = role.lower()
+    
     summary = f"Results-driven technical specialist with expertise in {role}. Demonstrated track record of developing sophisticated code solutions backed by git credentials."
     if "machine learning" in role_l or "data" in role_l:
         summary = f"Machine Learning specialist focused on predictive modeling, NLP pipelines, and data architectures. Backed by verified repository evidence showing execution depth in Python and algorithm design."
     elif "backend" in role_l or "systems" in role_l:
         summary = f"Backend systems engineer specialized in constructing robust REST APIs, network logic, and data engines. Experienced with high-performance routing and algorithmic optimizations."
-    
-    # 2. Sort projects based on relevance to the target role using only confirmed domains/skills
+
     scored_projects = []
     for p in projects:
         score = p.complexity_score
-        
-        # Get user_confirmed domains and skills
         confirmed_domains = db.query(Domain).join(project_domains).filter(
             project_domains.c.project_id == p.id,
             project_domains.c.status == "user_confirmed"
@@ -383,31 +505,32 @@ def get_dynamic_resume(
         p_domains_str = " ".join([d.name.lower() for d in confirmed_domains])
         p_skills_str = " ".join([s.name.lower() for s in confirmed_skills])
         
+        reasons = []
         if "machine learning" in role_l:
             if "machine learning" in p_domains_str or "nlp" in p_skills_str or "model" in p_domains_str:
                 score += 5.0
+                reasons.append("Matches machine learning modeling & NLP requirements")
         elif "backend" in role_l:
             if "backend" in p_domains_str or "api" in p_skills_str:
                 score += 5.0
+                reasons.append("Demonstrates scalable API & backend systems design")
         elif "software" in role_l:
             if "software engineering" in p_domains_str or "algorithms" in p_domains_str:
                 score += 3.0
+                reasons.append("High algorithmic complexity and structured software engineering")
                 
-        scored_projects.append((score, p))
+        scored_projects.append((score, p, reasons))
         
     scored_projects.sort(key=lambda x: x[0], reverse=True)
     
-    # 3. Formulate tailored narratives for top projects dynamically using confirmed claims
     resume_projects = []
-    for _, p in scored_projects:
-        # Fetch user_confirmed claims as project bullet points
+    for _, p, reasons in scored_projects:
         claims_list = db.query(Claim).filter(
             Claim.project_id == p.id,
             Claim.status == "user_confirmed"
         ).all()
         bullet_points = [c.claim for c in claims_list]
         
-        # Fallback narrative if no claims are present/confirmed yet
         if not bullet_points:
             confirmed_skills = db.query(Skill).join(project_skills).filter(
                 project_skills.c.project_id == p.id,
@@ -418,7 +541,7 @@ def get_dynamic_resume(
 
         evidence_links = []
         for claim in claims_list:
-            for ev in claim.evidence[:1]: # pick first evidence link
+            for ev in claim.evidence[:1]:
                 evidence_links.append({
                     "type": ev.type,
                     "url": ev.source_url or "#",
@@ -433,361 +556,539 @@ def get_dynamic_resume(
         resume_projects.append({
             "id": p.id,
             "title": p.title,
-            "description": p.description,
+            "description": p.description or "",
             "skills": [s.name for s in confirmed_skills[:5]],
             "evidence_links": evidence_links,
-            "narrative": " • ".join(bullet_points)
+            "narrative": " • ".join(bullet_points),
+            "selected_reasons": reasons,
+            "included": True,
+            "custom_bullets": bullet_points
         })
 
-    # Gather skills matching the role
     all_skills_progress = db.query(SkillProgress).filter(SkillProgress.user_id == current_user.id).all()
     skills_list = [sp.skill.name for sp in sorted(all_skills_progress, key=lambda x: x.evidence_count, reverse=True)[:8]]
     
-    # Gather user_confirmed claims
     claims = [c.claim for c in db.query(Claim).filter(
         Claim.user_id == current_user.id,
         Claim.status == "user_confirmed"
     )[:4]]
-    
+
+    # Also load structured work experience and education
+    work_exps = db.query(WorkExperience).filter(WorkExperience.user_id == current_user.id).order_by(WorkExperience.created_at.desc()).all()
+    edus = db.query(Education).filter(Education.user_id == current_user.id).order_by(Education.created_at.desc()).all()
+    certs = db.query(Certification).filter(Certification.user_id == current_user.id).order_by(Certification.created_at.desc()).all()
+    links = db.query(SocialLink).filter(SocialLink.user_id == current_user.id).order_by(SocialLink.created_at.asc()).all()
+
     return {
         "target_role": role,
         "profile": current_user,
         "summary": summary,
         "projects": resume_projects,
         "skills": skills_list,
-        "claims": claims
+        "claims": claims,
+        "experience": [WorkExperienceResponse.model_validate(w).model_dump() for w in work_exps],
+        "education": [EducationResponse.model_validate(e).model_dump() for e in edus],
+        "certifications": [CertificationResponse.model_validate(c).model_dump() for c in certs],
+        "links": [SocialLinkResponse.model_validate(l).model_dump() for l in links]
     }
 
 
-# --- Recruiter Match Endpoint ---
-
-@app.get("/api/recruiter/match", response_model=RecruiterMatchResponse)
-def get_recruiter_match(
-    role_name: str = Query(..., description="Name of the target role to match against"),
+@app.get("/api/resume", response_model=ResumeResponse)
+def get_dynamic_resume(
+    role: str = Query(..., description="Target role name"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Benchmarks user capabilities against role requirements and provides verifiable evidence links."""
-    # Find matching role
+    """Retrieves the saved resume for the target role if existing, or generates a dynamic graph resume."""
+    saved = db.query(Resume).filter(
+        Resume.user_id == current_user.id,
+        Resume.target_role.ilike(role)
+    ).first()
+    
+    if saved:
+        return {
+            "id": saved.id,
+            "title": saved.title,
+            "target_role": saved.target_role,
+            "variant": saved.variant,
+            "profile": current_user,
+            "summary": saved.summary,
+            "skills": saved.skills_json or [],
+            "claims": saved.claims_json or [],
+            "projects": saved.projects_json or [],
+            "experience": saved.experience_json or [],
+            "education": saved.education_json or [],
+            "certifications": saved.certifications_json or [],
+            "links": saved.links_json or [],
+            "is_primary": saved.is_primary,
+            "created_at": saved.created_at,
+            "updated_at": saved.updated_at
+        }
+        
+    return build_dynamic_resume_payload(current_user, role, db)
+
+
+@app.get("/api/resumes", response_model=List[ResumeResponse])
+def list_resumes(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    resumes = db.query(Resume).filter(Resume.user_id == current_user.id).order_by(Resume.updated_at.desc()).all()
+    results = []
+    for r in resumes:
+        results.append({
+            "id": r.id,
+            "title": r.title,
+            "target_role": r.target_role,
+            "variant": r.variant,
+            "profile": current_user,
+            "summary": r.summary,
+            "skills": r.skills_json or [],
+            "claims": r.claims_json or [],
+            "projects": r.projects_json or [],
+            "experience": r.experience_json or [],
+            "education": r.education_json or [],
+            "certifications": r.certifications_json or [],
+            "links": r.links_json or [],
+            "is_primary": r.is_primary,
+            "created_at": r.created_at,
+            "updated_at": r.updated_at
+        })
+    return results
+
+
+@app.get("/api/resumes/{id}", response_model=ResumeResponse)
+def get_resume_by_id(id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    r = db.query(Resume).filter(Resume.id == id, Resume.user_id == current_user.id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    return {
+        "id": r.id,
+        "title": r.title,
+        "target_role": r.target_role,
+        "variant": r.variant,
+        "profile": current_user,
+        "summary": r.summary,
+        "skills": r.skills_json or [],
+        "claims": r.claims_json or [],
+        "projects": r.projects_json or [],
+        "experience": r.experience_json or [],
+        "education": r.education_json or [],
+        "certifications": r.certifications_json or [],
+        "links": r.links_json or [],
+        "is_primary": r.is_primary,
+        "created_at": r.created_at,
+        "updated_at": r.updated_at
+    }
+
+
+@app.post("/api/resumes", response_model=ResumeResponse)
+def create_or_save_resume(
+    req: ResumeSaveRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Persists a new or customized resume."""
+    # Convert projects to dicts
+    projects_data = []
+    if req.projects:
+        for p in req.projects:
+            p_dict = p.model_dump()
+            p_dict["id"] = str(p_dict["id"])
+            projects_data.append(p_dict)
+    else:
+        # Fallback to dynamic build
+        dynamic = build_dynamic_resume_payload(current_user, req.target_role or "Software Engineer", db)
+        projects_data = dynamic["projects"]
+        if not req.summary:
+            req.summary = dynamic["summary"]
+        if not req.skills:
+            req.skills = dynamic["skills"]
+
+    resume = Resume(
+        user_id=current_user.id,
+        title=req.title or f"{req.target_role} Resume",
+        target_role=req.target_role or "Software Engineer",
+        variant=req.variant or "visual",
+        summary=req.summary or "",
+        skills_json=req.skills or [],
+        claims_json=req.claims or [],
+        projects_json=projects_data,
+        experience_json=req.experience or [],
+        education_json=req.education or [],
+        certifications_json=req.certifications or [],
+        links_json=req.links or [],
+        is_primary=req.is_primary or False
+    )
+    db.add(resume)
+    db.commit()
+    db.refresh(resume)
+
+    # Save initial version
+    version = ResumeVersion(
+        resume_id=resume.id,
+        version_number=1,
+        change_summary="Initial created version",
+        snapshot_payload={
+            "summary": resume.summary,
+            "skills": resume.skills_json,
+            "projects": resume.projects_json
+        }
+    )
+    db.add(version)
+    db.commit()
+
+    return {
+        "id": resume.id,
+        "title": resume.title,
+        "target_role": resume.target_role,
+        "variant": resume.variant,
+        "profile": current_user,
+        "summary": resume.summary,
+        "skills": resume.skills_json or [],
+        "claims": resume.claims_json or [],
+        "projects": resume.projects_json or [],
+        "experience": resume.experience_json or [],
+        "education": resume.education_json or [],
+        "certifications": resume.certifications_json or [],
+        "links": resume.links_json or [],
+        "is_primary": resume.is_primary,
+        "created_at": resume.created_at,
+        "updated_at": resume.updated_at
+    }
+
+
+@app.put("/api/resumes/{id}", response_model=ResumeResponse)
+def update_resume(
+    id: uuid.UUID,
+    req: ResumeSaveRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    resume = db.query(Resume).filter(Resume.id == id, Resume.user_id == current_user.id).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    if req.title is not None:
+        resume.title = req.title
+    if req.target_role is not None:
+        resume.target_role = req.target_role
+    if req.variant is not None:
+        resume.variant = req.variant
+    if req.summary is not None:
+        resume.summary = req.summary
+    if req.skills is not None:
+        resume.skills_json = req.skills
+    if req.claims is not None:
+        resume.claims_json = req.claims
+    if req.projects is not None:
+        projects_data = []
+        for p in req.projects:
+            p_dict = p.model_dump()
+            p_dict["id"] = str(p_dict["id"])
+            projects_data.append(p_dict)
+        resume.projects_json = projects_data
+    if req.experience is not None:
+        resume.experience_json = req.experience
+    if req.education is not None:
+        resume.education_json = req.education
+    if req.certifications is not None:
+        resume.certifications_json = req.certifications
+    if req.links is not None:
+        resume.links_json = req.links
+    if req.is_primary is not None:
+        resume.is_primary = req.is_primary
+
+    resume.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(resume)
+
+    return {
+        "id": resume.id,
+        "title": resume.title,
+        "target_role": resume.target_role,
+        "variant": resume.variant,
+        "profile": current_user,
+        "summary": resume.summary,
+        "skills": resume.skills_json or [],
+        "claims": resume.claims_json or [],
+        "projects": resume.projects_json or [],
+        "experience": resume.experience_json or [],
+        "education": resume.education_json or [],
+        "certifications": resume.certifications_json or [],
+        "links": resume.links_json or [],
+        "is_primary": resume.is_primary,
+        "created_at": resume.created_at,
+        "updated_at": resume.updated_at
+    }
+
+
+@app.delete("/api/resumes/{id}")
+def delete_resume(id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    resume = db.query(Resume).filter(Resume.id == id, Resume.user_id == current_user.id).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    db.delete(resume)
+    db.commit()
+    return {"status": "deleted"}
+
+
+@app.post("/api/resumes/ai-improve", response_model=AIImproveResponse)
+def ai_improve_resume_content(req: AIImproveRequest, current_user: User = Depends(get_current_user)):
+    """Enhances a summary or project bullet with quantifiable impact and ATS keywords."""
+    role = req.target_role or "Software Engineer"
+    text = req.text.strip()
+    
+    if req.field_type == "summary":
+        improved = f"Accomplished {role} specialized in architecting high-performance distributed systems, verified algorithm design, and scalable cloud services. Proven history of optimizing latency and leading resilient engineering implementations."
+        suggestions = [
+            f"Highlight specific cloud environments (e.g. AWS, GCP, Kubernetes) matching {role}",
+            "Quantify years of production experience or team leadership",
+            "Include your core tech stack (e.g. TypeScript, Python, Go, PostgreSQL)"
+        ]
+    else:
+        # Bullet improvement
+        if not text.lower().startswith(("architected", "developed", "engineered", "implemented", "optimized", "built", "spearheaded")):
+            improved = f"Architected and deployed high-efficiency pipeline for {text.lower()}, improving processing throughput by 35% and reducing p99 latency."
+        else:
+            improved = f"{text} — resulted in 40% efficiency gains and verified fault tolerance across production environments."
+        suggestions = [
+            "Add measurable metric (e.g. latency reduction, % test coverage, requests/sec)",
+            "Mention the exact technologies/algorithms leveraged in the implementation"
+        ]
+
+    return AIImproveResponse(
+        improved_text=improved,
+        suggestions=suggestions
+    )
+
+
+# --- Recruiter Match Endpoints ---
+
+@app.get("/api/recruiter/match", response_model=RecruiterMatchResponse)
+def get_recruiter_match(
+    role_name: str = Query(..., description="Role title to evaluate match against"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Evaluates candidate match against a target role based on confirmed domains and skills."""
     role = db.query(Role).filter(Role.name.ilike(role_name)).first()
     if not role:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Role '{role_name}' not found. Supported roles: Software Engineer, Machine Learning Engineer, Data Scientist, Research Engineer, Backend Engineer"
+        role = Role(
+            name=role_name,
+            description=f"Industry standard requirements and competency matrix for {role_name}."
         )
+        db.add(role)
+        db.commit()
+        db.refresh(role)
         
-    user_skills_progress = db.query(SkillProgress).filter(SkillProgress.user_id == current_user.id).all()
-    user_domains_progress = db.query(DomainProgress).filter(DomainProgress.user_id == current_user.id).all()
+    domain_progress = db.query(DomainProgress).filter(DomainProgress.user_id == current_user.id).all()
+    skill_progress = db.query(SkillProgress).filter(SkillProgress.user_id == current_user.id).all()
     
-    # Compile match matrix
     criteria_matches = []
-    strengths = []
-    gaps = []
-    
-    # Define rules-based criteria mapping if role requirements aren't fully seeded
-    required_keywords = []
-    if "machine learning" in role_name.lower():
-        required_keywords = [
-            ("Machine Learning", "domain", "HIGH"),
-            ("Python", "skill", "HIGH"),
-            ("Model Evaluation", "skill", "MEDIUM"),
-            ("NLP", "skill", "MEDIUM")
-        ]
-    elif "backend" in role_name.lower():
-        required_keywords = [
-            ("Backend Development", "domain", "HIGH"),
-            ("API Development", "skill", "HIGH"),
-            ("Python", "skill", "MEDIUM"),
-            ("C", "skill", "MEDIUM")
-        ]
-    else: # Software Engineer
-        required_keywords = [
-            ("Software Engineering", "domain", "HIGH"),
-            ("Algorithms / DSA", "domain", "HIGH"),
-            ("TypeScript", "skill", "MEDIUM"),
-            ("Python", "skill", "MEDIUM")
-        ]
-
-    for name, item_type, importance in required_keywords:
-        match_status = "missing"
-        details = f"No evidence detected for {name}."
-        
-        if item_type == "domain":
-            prog = next((dp for dp in user_domains_progress if dp.domain.name.lower() == name.lower()), None)
-            if prog:
-                if prog.current_level in ["STRONG", "ADVANCED"]:
-                    match_status = "strong"
-                    details = f"Strong evidence across {prog.exposure_score * 5:.0f} projects. Level: {prog.current_level}."
-                    strengths.append(name)
-                elif prog.current_level in ["PROFICIENT", "DEVELOPING"]:
-                    match_status = "moderate"
-                    details = f"Moderate practice detected. Level: {prog.current_level}."
-                else:
-                    match_status = "weak"
-                    details = f"Limited exposure. Level: {prog.current_level}."
-                    gaps.append(name)
-            else:
-                gaps.append(name)
-        else: # skill
-            prog = next((sp for sp in user_skills_progress if sp.skill.name.lower() == name.lower()), None)
-            if prog:
-                if prog.current_level in ["STRONG", "ADVANCED"]:
-                    match_status = "strong"
-                    details = f"Utilized in {prog.evidence_count} project(s) with high frequency."
-                    strengths.append(name)
-                elif prog.current_level in ["PROFICIENT", "PRACTICING"]:
-                    match_status = "moderate"
-                    details = f"Practiced in {prog.evidence_count} project(s)."
-                else:
-                    match_status = "weak"
-                    details = "Limited usage."
-                    gaps.append(name)
-            else:
-                gaps.append(name)
-                
+    for dp in domain_progress:
+        score = dp.exposure_score
+        status_label = "strong" if score >= 0.7 else ("moderate" if score >= 0.4 else "weak")
         criteria_matches.append(CriteriaMatch(
-            item_name=name,
-            type=item_type,
-            status=match_status,
-            details=details
+            item_name=dp.domain.name,
+            type="domain",
+            status=status_label,
+            details=f"Calculated depth {int(dp.depth_score*100)}% with {dp.current_level} proficiency."
         ))
-
-    # Overall match score narrative
+        
+    for sp in skill_progress:
+        status_label = "strong" if sp.evidence_count >= 3 else ("moderate" if sp.evidence_count >= 1 else "weak")
+        criteria_matches.append(CriteriaMatch(
+            item_name=sp.skill.name,
+            type="skill",
+            status=status_label,
+            details=f"Evidenced in {sp.evidence_count} project repositories with {sp.current_level} mastery."
+        ))
+        
     strong_count = sum(1 for c in criteria_matches if c.status == "strong")
-    overall_match = "Developing Match"
-    why_text = f"Candidate is developing skills for this role, with gaps in {', '.join(gaps[:2])}."
+    overall = "Strong Match" if strong_count >= 3 else ("Moderate Match" if strong_count >= 1 else "Developing Match")
     
-    if strong_count >= 3:
-        overall_match = "Strong Match"
-        why_text = f"Candidate shows strong verifiable alignment, particularly in {', '.join(strengths[:2])}."
-    elif strong_count >= 1:
-        overall_match = "Moderate Match"
-        why_text = f"Candidate shows moderate practice, with strengths in {', '.join(strengths[:1])} but emerging skill requirements in {', '.join(gaps[:1])}."
-
-    # Fetch claims with evidence
-    claims = db.query(Claim).filter(
+    evidence_claims = db.query(Claim).filter(
         Claim.user_id == current_user.id,
         Claim.status == "user_confirmed"
     ).all()
     
-    return {
-        "role_name": role_name,
-        "overall_match": overall_match,
-        "why_text": why_text,
-        "strengths": strengths,
-        "gaps": gaps,
-        "criteria_matches": criteria_matches,
-        "evidence_backed_claims": claims
-    }
-
-
-# --- Ideas Endpoints ---
-
-@app.post("/api/ideas", response_model=IdeaResponse)
-def create_idea(payload: IdeaCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    idea = Idea(
-        user_id=current_user.id,
-        title=payload.title,
-        description=payload.description,
-        status=payload.status,
-        maturity=payload.maturity,
-        parent_project_id=payload.parent_project_id
+    return RecruiterMatchResponse(
+        role_name=role_name,
+        overall_match=overall,
+        why_text=f"Candidate demonstrates high verified capability in {', '.join([c.item_name for c in criteria_matches if c.status == 'strong'][:3]) or 'software development'}.",
+        strengths=[c.item_name for c in criteria_matches if c.status == "strong"],
+        gaps=[c.item_name for c in criteria_matches if c.status == "weak"],
+        criteria_matches=criteria_matches,
+        evidence_backed_claims=[ClaimResponse.model_validate(c) for c in evidence_claims]
     )
-    db.add(idea)
-    db.commit()
-    db.refresh(idea)
-    
-    # Log activity
-    activity = Activity(
-        user_id=current_user.id,
-        type="IDEA_CREATED",
-        source="user_input",
-        timestamp=datetime.utcnow(),
-        activity_metadata={"title": idea.title}
-    )
-    db.add(activity)
-    db.commit()
-    
-    return idea
-
-@app.put("/api/ideas/{idea_id}", response_model=IdeaResponse)
-def update_idea(idea_id: str, payload: IdeaCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    idea = db.query(Idea).filter(Idea.id == idea_id, Idea.user_id == current_user.id).first()
-    if not idea:
-        raise HTTPException(status_code=404, detail="Idea not found")
-        
-    for key, val in payload.dict().items():
-        setattr(idea, key, val)
-        
-    # If idea is matured to active project, update and link
-    if payload.status == "MATURING" and payload.parent_project_id is None:
-        # Create a blank project placeholder
-        project = Project(
-            user_id=current_user.id,
-            title=idea.title,
-            description=idea.description,
-            status="ACTIVE",
-            project_type="PERSONAL",
-            started_at=datetime.utcnow()
-        )
-        db.add(project)
-        db.flush()
-        idea.parent_project_id = project.id
-        idea.status = "MATURED"
-        
-    db.commit()
-    db.refresh(idea)
-    return idea
 
 
-# --- Review & Governance Endpoints ---
+# --- Review Queue Endpoints ---
 
 @app.get("/api/review")
-def get_review_queue(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Fetches all items currently in 'ai_suggested' status for the user's review."""
-    # 1. Suggested claims
-    claims = db.query(Claim).filter(
+def get_review_queue(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Returns AI-suggested claims, skills, and domains waiting for user confirmation."""
+    pending_claims = db.query(Claim).filter(
         Claim.user_id == current_user.id,
         Claim.status == "ai_suggested"
     ).all()
     
-    # 2. Suggested domains
-    domains_query = db.execute(
-        project_domains.select().where(
-            project_domains.c.status == "ai_suggested"
-        )
-    ).fetchall()
+    pending_domains_query = db.query(
+        project_domains.c.project_id,
+        project_domains.c.domain_id,
+        project_domains.c.confidence,
+        Project.title.label("project_title"),
+        Domain.name.label("domain_name")
+    ).join(Project, Project.id == project_domains.c.project_id
+    ).join(Domain, Domain.id == project_domains.c.domain_id
+    ).filter(
+        Project.user_id == current_user.id,
+        project_domains.c.status == "ai_suggested"
+    ).all()
     
-    suggested_domains = []
-    for m in domains_query:
-        proj = db.query(Project).filter(Project.id == m.project_id, Project.user_id == current_user.id).first()
-        if proj:
-            dom = db.query(Domain).filter(Domain.id == m.domain_id).first()
-            if dom:
-                suggested_domains.append({
-                    "project_id": proj.id,
-                    "project_title": proj.title,
-                    "domain_id": dom.id,
-                    "domain_name": dom.name,
-                    "confidence": m.confidence,
-                    "origin": m.origin,
-                    "status": m.status
-                })
-                
-    # 3. Suggested skills
-    skills_query = db.execute(
-        project_skills.select().where(
-            project_skills.c.status == "ai_suggested"
-        )
-    ).fetchall()
+    pending_skills_query = db.query(
+        project_skills.c.project_id,
+        project_skills.c.skill_id,
+        project_skills.c.confidence,
+        Project.title.label("project_title"),
+        Skill.name.label("skill_name")
+    ).join(Project, Project.id == project_skills.c.project_id
+    ).join(Skill, Skill.id == project_skills.c.skill_id
+    ).filter(
+        Project.user_id == current_user.id,
+        project_skills.c.status == "ai_suggested"
+    ).all()
     
-    suggested_skills = []
-    for m in skills_query:
-        proj = db.query(Project).filter(Project.id == m.project_id, Project.user_id == current_user.id).first()
-        if proj:
-            sk = db.query(Skill).filter(Skill.id == m.skill_id).first()
-            if sk:
-                suggested_skills.append({
-                    "project_id": proj.id,
-                    "project_title": proj.title,
-                    "skill_id": sk.id,
-                    "skill_name": sk.name,
-                    "category": sk.category,
-                    "confidence": m.confidence,
-                    "origin": m.origin,
-                    "status": m.status
-                })
-                
     return {
-        "claims": claims,
-        "domains": suggested_domains,
-        "skills": suggested_skills
+        "claims": [{
+            "id": str(c.id),
+            "claim": c.claim,
+            "claim_type": c.claim_type,
+            "confidence": c.confidence,
+            "project_id": str(c.project_id),
+            "project_title": c.project.title if c.project else "Unknown"
+        } for c in pending_claims],
+        "domains": [{
+            "project_id": str(d.project_id),
+            "domain_id": str(d.domain_id),
+            "confidence": d.confidence,
+            "project_title": d.project_title,
+            "domain_name": d.domain_name
+        } for d in pending_domains_query],
+        "skills": [{
+            "project_id": str(s.project_id),
+            "skill_id": str(s.skill_id),
+            "confidence": s.confidence,
+            "project_title": s.project_title,
+            "skill_name": s.skill_name
+        } for s in pending_skills_query]
     }
 
 
-@app.patch("/api/project-skills/{project_id}/{skill_id}")
-def update_project_skill(
-    project_id: str,
-    skill_id: str,
+@app.patch("/api/claims/{id}")
+def update_claim_status(
+    id: uuid.UUID,
     payload: Dict[str, str],
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    claim = db.query(Claim).filter(Claim.id == id, Claim.user_id == current_user.id).first()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
     status_val = payload.get("status")
-    if status_val not in ["user_confirmed", "user_rejected"]:
-        raise HTTPException(status_code=400, detail="Invalid status. Must be user_confirmed or user_rejected")
-        
-    project = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-        
-    result = db.execute(
-        project_skills.update().where(
-            project_skills.c.project_id == project_id,
-            project_skills.c.skill_id == skill_id
-        ).values(status=status_val)
-    )
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Skill mapping not found")
-        
-    update_skill_progress_scores(db, current_user.id)
-    update_domain_progress_scores(db, current_user.id)
-    save_career_snapshot(db, current_user.id)
+    if status_val not in ["user_confirmed", "user_rejected", "ai_suggested"]:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+    claim.status = status_val
     db.commit()
-    return {"status": "success", "message": f"Project skill updated to {status_val}"}
+    return {"status": "success", "claim_id": str(id), "new_status": status_val}
 
 
 @app.patch("/api/project-domains/{project_id}/{domain_id}")
-def update_project_domain(
-    project_id: str,
-    domain_id: str,
+def update_project_domain_status(
+    project_id: uuid.UUID,
+    domain_id: uuid.UUID,
     payload: Dict[str, str],
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    status_val = payload.get("status")
-    if status_val not in ["user_confirmed", "user_rejected"]:
-        raise HTTPException(status_code=400, detail="Invalid status. Must be user_confirmed or user_rejected")
-        
-    project = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
-    if not project:
+    proj = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
+    if not proj:
         raise HTTPException(status_code=404, detail="Project not found")
+    status_val = payload.get("status")
+    if status_val not in ["user_confirmed", "user_rejected", "ai_suggested"]:
+        raise HTTPException(status_code=400, detail="Invalid status value")
         
-    result = db.execute(
+    db.execute(
         project_domains.update().where(
             project_domains.c.project_id == project_id,
             project_domains.c.domain_id == domain_id
         ).values(status=status_val)
     )
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Domain mapping not found")
-        
-    update_domain_progress_scores(db, current_user.id)
-    save_career_snapshot(db, current_user.id)
     db.commit()
-    return {"status": "success", "message": f"Project domain updated to {status_val}"}
+    update_domain_progress_scores(db, current_user.id)
+    return {"status": "success", "new_status": status_val}
 
 
-@app.patch("/api/claims/{claim_id}")
-def update_claim_status(
-    claim_id: str,
+@app.patch("/api/project-skills/{project_id}/{skill_id}")
+def update_project_skill_status(
+    project_id: uuid.UUID,
+    skill_id: uuid.UUID,
     payload: Dict[str, str],
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    proj = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
     status_val = payload.get("status")
-    if status_val not in ["user_confirmed", "user_rejected"]:
-        raise HTTPException(status_code=400, detail="Invalid status. Must be user_confirmed or user_rejected")
+    if status_val not in ["user_confirmed", "user_rejected", "ai_suggested"]:
+        raise HTTPException(status_code=400, detail="Invalid status value")
         
-    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.user_id == current_user.id).first()
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-        
-    claim.status = status_val
-    update_domain_progress_scores(db, current_user.id)
-    save_career_snapshot(db, current_user.id)
+    db.execute(
+        project_skills.update().where(
+            project_skills.c.project_id == project_id,
+            project_skills.c.skill_id == skill_id
+        ).values(status=status_val)
+    )
     db.commit()
-    return {"status": "success", "message": f"Claim updated to {status_val}"}
+    update_skill_progress_scores(db, current_user.id)
+    return {"status": "success", "new_status": status_val}
+
+
+# --- Ideas & Projects Endpoints ---
+
+@app.post("/api/ideas", response_model=IdeaResponse)
+def create_idea(idea: IdeaCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    new_idea = Idea(
+        user_id=current_user.id,
+        title=idea.title,
+        description=idea.description,
+        status=idea.status,
+        potential_impact=idea.maturity
+    )
+    db.add(new_idea)
+    db.commit()
+    db.refresh(new_idea)
+    return new_idea
+
+
+@app.put("/api/ideas/{id}", response_model=IdeaResponse)
+def update_idea(id: uuid.UUID, idea: IdeaCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_idea = db.query(Idea).filter(Idea.id == id, Idea.user_id == current_user.id).first()
+    if not db_idea:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    db_idea.title = idea.title
+    db_idea.description = idea.description
+    db_idea.status = idea.status
+    db_idea.potential_impact = idea.maturity
+    db.commit()
+    db.refresh(db_idea)
+    return db_idea
+
+
+@app.delete("/api/ideas/{id}")
+def delete_idea(id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_idea = db.query(Idea).filter(Idea.id == id, Idea.user_id == current_user.id).first()
+    if not db_idea:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    db.delete(db_idea)
+    db.commit()
+    return {"status": "deleted"}

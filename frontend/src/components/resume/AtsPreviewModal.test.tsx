@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { AtsPreviewModal } from "./AtsPreviewModal";
 import type { ResumeData } from "../../types";
@@ -41,12 +41,15 @@ describe("AtsPreviewModal Component", () => {
     expect(screen.getByText(/VERIFIABLE PROJECTS & EXPERIENCE/)).toBeInTheDocument();
   });
 
-  it("triggers clipboard write when copy button is clicked", () => {
+  it("triggers clipboard write when copy button is clicked", async () => {
     render(<AtsPreviewModal resumeData={mockResume} onClose={vi.fn()} />);
 
     const copyBtn = screen.getByRole("button", { name: /copy plain text/i });
-    fireEvent.click(copyBtn);
+    await act(async () => {
+      fireEvent.click(copyBtn);
+    });
 
     expect(navigator.clipboard.writeText).toHaveBeenCalled();
   });
 });
+

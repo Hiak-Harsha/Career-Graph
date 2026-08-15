@@ -88,8 +88,16 @@
 /* Action bar */
 .actionBar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.6rem;
   flex-wrap: wrap;
+}
+
+.actionBtnGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .actionBtn {
@@ -97,6 +105,65 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+/* View Mode Segmented Toggle */
+.viewModeToggle {
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 0.2rem;
+  border-radius: 9999px;
+  gap: 0.25rem;
+}
+
+.viewModeBtn {
+  padding: 0.3rem 0.75rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all var(--t-fast);
+}
+
+.viewModeBtn:hover {
+  color: var(--text-primary);
+}
+
+.viewModeBtnActive {
+  background: var(--accent);
+  color: #FFFFFF;
+}
+
+/* Evidence inline citation chips */
+.citationChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.12rem 0.45rem;
+  margin-left: 0.45rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #EEF2FF;
+  color: #4F46E5;
+  border: 1px solid #C7D2FE;
+  cursor: pointer;
+  transition: all var(--t-fast);
+  vertical-align: middle;
+}
+
+.citationChip:hover {
+  background: #E0E7FF;
+  border-color: #818CF8;
+  transform: translateY(-1px);
 }
 
 /* Resume document */
@@ -209,6 +276,16 @@
   color: #4f46e5;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.evidenceBadgeClickable {
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+
+.evidenceBadgeClickable:hover {
+  background: #e0e7ff;
+  border-color: #818cf8;
 }
 
 .docProjNarrative {

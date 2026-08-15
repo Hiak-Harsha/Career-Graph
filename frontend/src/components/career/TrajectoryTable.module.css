@@ -1,0 +1,80 @@
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  padding: 1.5rem;
+  animation: fade-in 0.4s 0.1s var(--ease-out) both;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.viewAll {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.5rem;
+  color: var(--accent);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.table thead tr {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table th {
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0 0 0.6rem;
+  text-align: left;
+}
+
+.table th:not(:first-child) {
+  padding-left: 1rem;
+}
+
+.table td {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.table td:not(:first-child) {
+  padding-left: 1rem;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.domainName {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.level {
+  color: var(--text-secondary);
+}
+
+.traj {
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-display);
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  padding: 1rem 0;
+}

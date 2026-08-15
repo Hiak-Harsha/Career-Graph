@@ -1,0 +1,132 @@
+.card {
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: border-color var(--t-fast), background var(--t-fast);
+  animation: fade-in 0.3s var(--ease-out) both;
+}
+
+.card:hover {
+  border-color: var(--border-focus);
+  background: var(--bg-surface-hover);
+}
+
+/* Title row */
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: 0.3rem;
+}
+
+.meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Status badge */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.71rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  border: 1px solid transparent;
+}
+
+.statusIcon {
+  font-size: 0.58rem;
+}
+
+.s-active     { background: var(--success-subtle); color: var(--success); border-color: rgba(74,222,128,.2); }
+.s-exploring  { background: var(--accent-subtle);  color: var(--accent);  border-color: rgba(110,168,254,.2); }
+.s-completed  { background: rgba(255,255,255,.04); color: var(--text-muted); border-color: var(--border-subtle); }
+.s-maintained { background: rgba(255,255,255,.04); color: var(--text-secondary); border-color: var(--border); }
+.s-paused     { background: var(--warning-subtle); color: var(--warning); border-color: rgba(251,191,36,.2); }
+.s-neutral    { background: rgba(255,255,255,.04); color: var(--text-muted); border-color: var(--border-subtle); }
+
+/* Description */
+.description {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+/* Sections */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sectionLabel {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Career impact */
+.impactText {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.impactDomains {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Footer */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 0.25rem;
+}
+
+.evidenceCount {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.repoLink {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  transition: opacity var(--t-fast);
+}
+
+.repoLink:hover {
+  opacity: 0.75;
+}

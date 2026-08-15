@@ -1,0 +1,183 @@
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 440px;
+  max-width: 95vw;
+  z-index: 50;
+  background: var(--bg-surface-elevated);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.75rem 1.75rem 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.claimText {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.5;
+  font-style: italic;
+  max-width: 320px;
+}
+
+.closeBtn {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text-muted);
+  padding: 0.25rem 0.5rem;
+  flex-shrink: 0;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+/* Metadata grid */
+.metaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1.5rem;
+  padding: 1.2rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.metaLabel {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  margin-bottom: 0.2rem;
+}
+
+.metaValue {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Section */
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Proof chain */
+.proofChain {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.proofNode {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.proofNodeLabel {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+}
+
+.proofNodeContent {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  background: var(--bg-surface);
+}
+
+.proofNodeText {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.proofConnector {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.4rem 1.4rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* Evidence list */
+.evidenceList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.evidenceItem {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.evidenceItemHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.evidenceId {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  background: rgba(255,255,255,.05);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.evidenceContent {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.evidenceLink {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  transition: opacity var(--t-fast);
+}
+
+.evidenceLink:hover { opacity: 0.75; }
+
+.noEvidence {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+}

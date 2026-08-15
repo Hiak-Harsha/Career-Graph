@@ -1,0 +1,132 @@
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  padding: 1.5rem;
+  animation: fade-in 0.4s 0.15s var(--ease-out) both;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.viewAll {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.5rem;
+  color: var(--accent);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  transition: border-color var(--t-fast);
+}
+
+.item:hover {
+  border-color: var(--border-focus);
+}
+
+.itemMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+/* Status pill */
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.73rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+.statusIcon {
+  font-size: 0.6rem;
+  line-height: 1;
+}
+
+.lastActivity {
+  color: inherit;
+  opacity: 0.65;
+  font-weight: 500;
+}
+
+/* Status variants */
+.status-active {
+  background: var(--success-subtle);
+  color: var(--success);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+.status-exploring {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border: 1px solid rgba(110, 168, 254, 0.2);
+}
+
+.status-maintained {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.status-paused {
+  background: var(--warning-subtle);
+  color: var(--warning);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.status-completed {
+  background: rgba(255,255,255,.04);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.status-idea, .status-planned {
+  background: rgba(255,255,255,.04);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  padding: 0.5rem 0;
+}

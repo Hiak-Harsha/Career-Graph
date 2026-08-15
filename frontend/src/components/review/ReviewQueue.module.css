@@ -81,6 +81,9 @@
   cursor: pointer;
   background: transparent;
   transition: all var(--t-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .approve {

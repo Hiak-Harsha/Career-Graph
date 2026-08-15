@@ -8,7 +8,9 @@ import {
   Network,
   FolderGit2,
   Lightbulb,
+  CheckSquare,
   Compass,
+  Award,
   ShieldCheck,
   FileText,
   UserCheck,
@@ -21,6 +23,7 @@ type NavItem = {
   id: string;
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
+  showBadge?: boolean;
 };
 
 type NavSection = {
@@ -40,11 +43,13 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: "projects", label: "Projects", icon: FolderGit2 },
       { id: "ideas", label: "Ideas", icon: Lightbulb },
+      { id: "review", label: "Review", icon: CheckSquare, showBadge: true },
     ],
   },
   {
     items: [
       { id: "domains", label: "Domains", icon: Compass },
+      { id: "skills", label: "Skills", icon: Award },
       { id: "evidence", label: "Evidence", icon: ShieldCheck },
     ],
   },
@@ -67,6 +72,7 @@ type SidebarProps = {
   syncStatus: "connected" | "syncing" | "error" | "idle";
   handleGithubSync: () => void;
   handleRunDemoSync: () => void;
+  pendingReviewCount?: number;
 };
 
 function formatRelativeTime(date: Date): string {
@@ -87,6 +93,7 @@ export function Sidebar({
   syncStatus,
   handleGithubSync,
   handleRunDemoSync,
+  pendingReviewCount = 0,
 }: SidebarProps) {
   const dotClass =
     syncing
@@ -136,7 +143,7 @@ export function Sidebar({
                 {section.label}
               </span>
             )}
-            {section.items.map(({ id, label, icon: Icon }) => (
+            {section.items.map(({ id, label, icon: Icon, showBadge }) => (
               <button
                 key={id}
                 type="button"
@@ -148,6 +155,9 @@ export function Sidebar({
               >
                 <Icon size={16} className={styles.navIcon} />
                 <span>{label}</span>
+                {showBadge && pendingReviewCount > 0 && (
+                  <span className={styles.navBadge}>{pendingReviewCount}</span>
+                )}
               </button>
             ))}
           </div>

@@ -59,7 +59,7 @@ function AuthCallbackHandler() {
   return (
     <div className={styles.container}>
       <div className={`${styles.card} surface`}>
-        <div style={{ color: "var(--accent)" }}>
+        <div className={styles.iconWrap}>
           <GithubIcon size={36} />
         </div>
         <h2 className={styles.title}>Connecting GitHub</h2>

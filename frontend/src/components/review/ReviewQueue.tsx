@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "../../config";
 import styles from "./ReviewQueue.module.css";
+import { Check, X, Loader2, CheckSquare } from "lucide-react";
 
 export type ReviewItem = {
   id?: string;
@@ -56,6 +57,15 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
   ) => {
     const key = `${kind}-${item.id ?? item.domain_id ?? item.skill_id}`;
     setBusy(key);
+
+    // Optimistic UI removal
+    setQueue((prev) => ({
+      ...prev,
+      [kind]: prev[kind].filter(
+        (i) => (i.id ?? i.domain_id ?? i.skill_id) !== (item.id ?? item.domain_id ?? item.skill_id)
+      ),
+    }));
+
     try {
       const path =
         kind === "claims"
@@ -70,9 +80,11 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
         body: JSON.stringify({ status: decision }),
       });
 
-      await Promise.all([load(), onRefreshAll()]);
+      await onRefreshAll();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to save review.");
+      // Reload on failure to restore state
+      await load();
     } finally {
       setBusy(null);
     }
@@ -84,12 +96,14 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
     ["skills", "Skills"],
   ];
 
+  const totalPending = queue.claims.length + queue.domains.length + queue.skills.length;
+
   return (
     <section className={styles.root}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Review Queue</h1>
+        <h1 className={styles.pageTitle || styles.title}>Review Queue</h1>
         <p className={styles.subtitle}>
-          Confirm or reject evidence and suggestions to keep your career graph accurate.
+          Confirm or reject AI suggestions to keep your Career Graph verified and accurate.
         </p>
       </div>
 
@@ -97,14 +111,16 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
 
       {groups.map(([kind, label]) => (
         <div className={`${styles.card} surface`} key={kind}>
-          <h2 className={styles.groupTitle}>{label}</h2>
+          <h2 className={styles.groupTitle}>{label} ({queue[kind].length})</h2>
           {queue[kind].length === 0 ? (
-            <p className={styles.empty}>Nothing awaiting review.</p>
+            <p className={styles.empty}>Nothing awaiting review in {label.toLowerCase()}.</p>
           ) : (
             queue[kind].map((item) => {
               const key = `${kind}-${item.id ?? item.domain_id ?? item.skill_id}`;
               const name =
                 item.claim ?? item.domain_name ?? item.skill_name ?? "Suggestion";
+              const isItemBusy = busy === key;
+
               return (
                 <div className={styles.reviewItem} key={key}>
                   <div className={styles.itemInfo}>
@@ -118,18 +134,20 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
                     <button
                       type="button"
                       className={`${styles.action} ${styles.approve}`}
-                      disabled={busy === key}
+                      disabled={isItemBusy}
                       onClick={() => decide(kind, item, "user_confirmed")}
                     >
-                      Confirm
+                      {isItemBusy ? <Loader2 size={12} className="animate-spin" /> : <Check size={13} />}
+                      <span>Confirm</span>
                     </button>
                     <button
                       type="button"
                       className={`${styles.action} ${styles.reject}`}
-                      disabled={busy === key}
+                      disabled={isItemBusy}
                       onClick={() => decide(kind, item, "user_rejected")}
                     >
-                      Reject
+                      <X size={13} />
+                      <span>Reject</span>
                     </button>
                   </div>
                 </div>

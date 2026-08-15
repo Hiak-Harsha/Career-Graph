@@ -21,6 +21,7 @@ interface UseCareerGraphReturn {
   skillsProgress: SkillProgress[];
   problemSolving: ProblemSolvingProfile | null;
   timeline: TimelineEntry[];
+  pendingReviewCount: number;
   loading: boolean;
   syncing: boolean;
   error: string;
@@ -40,6 +41,7 @@ export function useCareerGraph(): UseCareerGraphReturn {
   const [skillsProgress, setSkillsProgress] = useState<SkillProgress[]>([]);
   const [problemSolving, setProblemSolving] = useState<ProblemSolvingProfile | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
@@ -60,6 +62,21 @@ export function useCareerGraph(): UseCareerGraphReturn {
       setTimeline(data.timeline);
       setLastUpdated(new Date());
       setError("");
+
+      // Fetch pending review count
+      try {
+        const reviewRes = await apiFetch("/review");
+        if (reviewRes.ok) {
+          const reviewData = await reviewRes.json();
+          const count =
+            (reviewData.claims?.length ?? 0) +
+            (reviewData.domains?.length ?? 0) +
+            (reviewData.skills?.length ?? 0);
+          setPendingReviewCount(count);
+        }
+      } catch {
+        // ignore review count fetch failure
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to connect to backend.";
       setError(msg);
@@ -117,6 +134,7 @@ export function useCareerGraph(): UseCareerGraphReturn {
     skillsProgress,
     problemSolving,
     timeline,
+    pendingReviewCount,
     loading,
     syncing,
     error,

@@ -18,9 +18,14 @@ import { IdentityHero } from "../components/career/IdentityHero";
 import { TrajectoryTable } from "../components/career/TrajectoryTable";
 import { CurrentlyBuilding } from "../components/career/CurrentlyBuilding";
 import { EmergingDomains } from "../components/career/EmergingDomains";
+import { ProblemSolvingProfile } from "../components/career/ProblemSolvingProfile";
 
-// Domains
+// Domains & Skills
 import { DomainCard } from "../components/domains/DomainCard";
+import { SkillProgressView } from "../components/skills/SkillProgressView";
+
+// Review Queue
+import { ReviewQueue } from "../components/review/ReviewQueue";
 
 // Projects
 import { ProjectCard } from "../components/projects/ProjectCard";
@@ -166,6 +171,10 @@ export default function CareerGraphApp() {
     projects,
     ideas,
     domainProgress,
+    skillsProgress,
+    problemSolving,
+    timeline,
+    pendingReviewCount,
     loading,
     syncing,
     error,
@@ -276,6 +285,7 @@ export default function CareerGraphApp() {
         }
         handleGithubSync={() => setGithubModalOpen(true)}
         handleRunDemoSync={runDemo}
+        pendingReviewCount={pendingReviewCount}
       />
 
       <main className={styles.main} id="main-content">
@@ -321,6 +331,7 @@ export default function CareerGraphApp() {
                 <DashboardView
                   projects={projects}
                   domainProgress={domainProgress}
+                  problemSolving={problemSolving}
                   profile={profile}
                   lastUpdated={lastUpdated}
                   setActiveView={setActiveView}
@@ -341,8 +352,14 @@ export default function CareerGraphApp() {
                   onMatureIdea={handleMatureIdea}
                 />
               )}
+              {activeView === "review" && (
+                <ReviewQueue onRefreshAll={refresh} />
+              )}
               {activeView === "domains" && (
                 <DomainsView domainProgress={domainProgress} projects={projects} />
+              )}
+              {activeView === "skills" && (
+                <SkillProgressView skillsProgress={skillsProgress} />
               )}
               {activeView === "evidence" && <EvidenceView projects={projects} />}
               {activeView === "resume" && (
@@ -361,7 +378,7 @@ export default function CareerGraphApp() {
                   onRoleChange={setSelectedRole}
                 />
               )}
-              {activeView === "timeline" && <TimelineView />}
+              {activeView === "timeline" && <TimelineView timeline={timeline} />}
             </motion.div>
           </AnimatePresence>
         )}
@@ -383,12 +400,14 @@ export default function CareerGraphApp() {
 function DashboardView({
   projects,
   domainProgress,
+  problemSolving,
   profile,
   lastUpdated,
   setActiveView,
 }: {
   projects: Project[];
   domainProgress: DomainProgress[];
+  problemSolving: import("../types").ProblemSolvingProfile | null;
   profile: import("../types").UserProfile | null;
   lastUpdated: Date | null;
   setActiveView: (v: ActiveView) => void;
@@ -414,6 +433,9 @@ function DashboardView({
           <span className={styles.statLabel}>High-depth projects</span>
         </div>
       </div>
+
+      {/* Problem Solving Profile */}
+      <ProblemSolvingProfile profile={problemSolving} />
 
       <div className={styles.dashGrid}>
         <TrajectoryTable domainProgress={domainProgress} onViewAll={() => setActiveView("domains")} />
@@ -695,9 +717,7 @@ function IdeasView({
 
 // ─── Timeline view ────────────────────────────────────────────────────────────
 
-function TimelineView() {
-  const { timeline } = useCareerGraph();
-
+function TimelineView({ timeline }: { timeline: TimelineEntry[] }) {
   return (
     <div className={styles.view}>
       <div className={styles.pageHeader}>

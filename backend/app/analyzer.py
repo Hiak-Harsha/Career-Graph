@@ -383,6 +383,25 @@ def fallback_heuristics_analyzer(repo_name: str, description: str, languages: Di
     }
 
 
+def _icon_for_domain(domain_name: Optional[str]) -> str:
+    """Deterministically maps a domain name to a Lucide icon key."""
+    if not domain_name:
+        return "award"
+    d_lower = domain_name.lower()
+    if any(k in d_lower for k in ["ml", "machine learning", "ai", "intelligence", "neural", "vision", "nlp"]):
+        return "zap"
+    if any(k in d_lower for k in ["backend", "distributed", "system", "cloud", "infra", "database", "api"]):
+        return "shield-check"
+    if any(k in d_lower for k in ["algorithm", "dsa", "math", "optimization", "graph"]):
+        return "target"
+    if any(k in d_lower for k in ["data", "analytics", "statistics", "metric"]):
+        return "bar-chart"
+    if any(k in d_lower for k in ["frontend", "full stack", "web", "mobile", "app"]):
+        return "trending-up"
+    icons = ["award", "zap", "shield-check", "target", "bar-chart", "trending-up"]
+    return icons[abs(hash(domain_name)) % len(icons)]
+
+
 def update_domain_progress_scores(db: Session, user_id: str):
     """Calculates exposure, activity, depth, evidence, and recency scores for domains and updates levels."""
     user = db.query(User).filter(User.id == user_id).first()

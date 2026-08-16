@@ -786,6 +786,25 @@ def test_resume_save_and_update_with_nested_uuids(client, db):
     assert len(updated["claims"]) == 2
 
 
+def test_auto_generate_featured_resume(client, db):
+    """Asserts that /api/resume/featured/auto-generate evaluates candidate competencies and returns a 2-column block structure containing achievements."""
+    res = client.post("/api/resume/featured/auto-generate")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["layout_personality"] == "featured"
+    assert "blocks" in data
+    block_types = [b["block_type"] for b in data["blocks"]]
+    assert "identity" in block_types
+    assert "selected_work" in block_types
+    assert "achievements" in block_types
+    
+    # Verify achievements payload structure
+    achievements_block = next(b for b in data["blocks"] if b["block_type"] == "achievements")
+    assert "achievements" in achievements_block["content_payload"]
+    assert isinstance(achievements_block["content_payload"]["achievements"], list)
+
+
+
 
 
 

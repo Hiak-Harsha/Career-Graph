@@ -17,15 +17,13 @@ import type {
   ExperienceBlockPayload,
   EducationBlockPayload,
   CertificationsBlockPayload,
-  SelectedWorkProject,
-  EvidenceClaimItem,
-  TechnicalDepthCluster,
 } from "../../types";
 import { apiFetch } from "../../config";
 import { ProfessionalSignature } from "./ProfessionalSignature";
 import { ResumeStrategyDrawer } from "./ResumeStrategyDrawer";
 import { AtsPreviewModal } from "./AtsPreviewModal";
 import { EvidenceDrawer } from "../evidence/EvidenceDrawer";
+import { FeaturedResumeView } from "./FeaturedResumeView";
 import { exportVisualPdf, exportAtsPdf } from "../../utils/pdfExport";
 import { GithubIcon } from "../ui/icons/GithubIcon";
 import { motion, AnimatePresence } from "framer-motion";
@@ -69,6 +67,7 @@ const ROLES = [
 ];
 
 const PERSONALITIES: { id: ResumePersonality; label: string }[] = [
+  { id: "featured", label: "Featured" },
   { id: "modern_professional", label: "Modern" },
   { id: "technical", label: "Technical" },
   { id: "editorial", label: "Editorial" },
@@ -88,6 +87,7 @@ export function ResumeView({
   const [personality, setPersonality] = useState<ResumePersonality>("modern_professional");
   const [blocksRep, setBlocksRep] = useState<ResumeBlockRepresentation | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isAutoGenerating, setIsAutoGenerating] = useState(false);
   const [strategyDrawerOpen, setStrategyDrawerOpen] = useState(false);
   const [atsModalOpen, setAtsModalOpen] = useState(false);
   const [selectedProofClaim, setSelectedProofClaim] = useState<Claim | null>(null);
@@ -98,6 +98,31 @@ export function ResumeView({
   const [isImprovingSummary, setIsImprovingSummary] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<"idle" | "saved" | "error">("idle");
   const [saveErrorMessage, setSaveErrorMessage] = useState("");
+
+  const handleAutoGenerate = async () => {
+    try {
+      setIsAutoGenerating(true);
+      setLoading(true);
+      const res = await apiFetch("/resume/featured/auto-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        const data: ResumeBlockRepresentation = await res.json();
+        setBlocksRep(data);
+        setPersonality("featured");
+        if (data.target_role) {
+          setSelectedRole(data.target_role);
+          if (onRoleChange) onRoleChange(data.target_role);
+        }
+      }
+    } catch {
+      // Handled gracefully
+    } finally {
+      setIsAutoGenerating(false);
+      setLoading(false);
+    }
+  };
 
   // Fetch block-based structured representation
   useEffect(() => {
@@ -141,16 +166,6 @@ export function ResumeView({
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
     onRoleChange?.(role);
-  };
-
-  const handleInspectClaim = (claimId: string, claimText: string) => {
-    setSelectedProofClaim({
-      id: claimId,
-      claim: claimText,
-      confidence: 1.0,
-      status: "user_confirmed",
-      evidence: [],
-    });
   };
 
   const handleExportPdf = () => {
@@ -249,6 +264,28 @@ export function ResumeView({
               ))}
             </select>
           </div>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              borderColor: "rgba(56, 189, 248, 0.4)",
+              background: "rgba(56, 189, 248, 0.06)",
+            }}
+            onClick={handleAutoGenerate}
+            disabled={isAutoGenerating}
+            title="Auto-evaluate best fitting role and 2-column featured layout"
+          >
+            {isAutoGenerating ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Sparkles size={13} color="#38bdf8" />
+            )}
+            <span>Auto-Generate Featured</span>
+          </button>
 
           <div className={styles.personalityGroup}>
             {PERSONALITIES.map((p) => (
@@ -350,6 +387,13 @@ export function ResumeView({
             className={paperClass}
             id="resume-document"
           >
+          {personality === "featured" && blocksRep?.blocks ? (
+            <FeaturedResumeView
+              blocks={blocksRep.blocks}
+              onInspectProof={setSelectedProofClaim}
+            />
+          ) : (
+            <>
           {/* 1. Identity Block */}
           <div className={styles.headerBlock}>
             <div className={styles.nameRow}>
@@ -371,38 +415,42 @@ export function ResumeView({
               </span>
               <span className={styles.contactItem}>
                 <MapPin size={13} />
-                <span>{identityBlock?.location || resumeData?.profile?.location || "City, Country"}</span>
+                <span>{identityBlock?.location || resumeData?.profile?.location || "San Francisco, CA"}</span>
               </span>
               <span className={styles.contactItem}>
                 <GithubIcon size={13} />
-                <span>github.com/{identityBlock?.github || resumeData?.profile?.github_username || "username"}</span>
+                <span>github.com/{identityBlock?.github || resumeData?.profile?.github_username || "developer"}</span>
               </span>
             </div>
           </div>
 
-          {/* 2. Professional Graph Signature */}
+          {/* 2. Professional Signature Block */}
           {signatureBlock?.nodes && signatureBlock.nodes.length > 0 && (
-            <ProfessionalSignature
-              nodes={signatureBlock.nodes}
-              edges={signatureBlock.edges || []}
-              projectStyle={signatureBlock.project_style}
-            />
+            <section aria-labelledby="heading-signature">
+              <div className={styles.sectionHeader}>
+                <h2 id="heading-signature" className={styles.sectionTitle}>
+                  <span>Professional Signature</span>
+                </h2>
+                <span className={styles.sectionBadge}>Graph Architecture</span>
+              </div>
+              <ProfessionalSignature
+                nodes={signatureBlock.nodes}
+                edges={signatureBlock.edges || []}
+                projectStyle={signatureBlock.project_style}
+              />
+            </section>
           )}
 
-          {/* 3. Core Positioning Block */}
+          {/* 3. Positioning Block */}
           <section aria-labelledby="heading-positioning">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className={styles.sectionHeader}>
               <h2 id="heading-positioning" className={styles.sectionTitle}>
                 <span>Core Profile & Positioning</span>
-                <span className={styles.sectionSubtitle}>
-                  Evidence Strength: {positioningBlock?.evidence_strength || "High"}
-                </span>
               </h2>
-              {isEditing && onAiImprove && (
+              {onAiImprove && (
                 <button
                   type="button"
-                  className="btn btn-secondary"
-                  style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", gap: "0.3rem" }}
+                  className={styles.aiImproveBtn}
                   onClick={handleAiImproveSummary}
                   disabled={isImprovingSummary}
                 >
@@ -411,104 +459,114 @@ export function ResumeView({
                   ) : (
                     <Sparkles size={12} />
                   )}
-                  <span>AI Polish</span>
+                  <span>AI Critique & Polish</span>
                 </button>
               )}
             </div>
-
             {isEditing ? (
               <textarea
-                className={styles.positioningText}
-                style={{
-                  width: "100%",
-                  minHeight: "80px",
-                  background: "rgba(15, 23, 42, 0.4)",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: "6px",
-                  padding: "0.6rem",
-                  color: "inherit",
-                  fontFamily: "inherit",
-                  fontSize: "0.9rem",
-                  lineHeight: "1.5",
-                  resize: "vertical",
-                }}
+                className={styles.editTextarea}
                 value={editedPositioning}
                 onChange={(e) => setEditedPositioning(e.target.value)}
-                placeholder="Enter your professional summary or positioning statement..."
+                placeholder="Write your high-signal professional positioning statement..."
+                rows={4}
               />
             ) : (
-              <p className={styles.positioningText}>
+              <p className={styles.positioningStatement}>
                 {editedPositioning ||
                   positioningBlock?.statement ||
                   resumeData?.summary ||
-                  "Engineer focused on intelligent systems with strong algorithmic foundations."}
+                  "Systems engineer specializing in high-performance architectures, verifiable technical execution, and algorithmic solvers."}
               </p>
             )}
           </section>
 
-          {/* 4. Selected Work & Systems */}
-          {selectedWorkBlock?.projects && selectedWorkBlock.projects.length > 0 && (
-            <section aria-labelledby="heading-selected-work">
+          {/* 4. Selected Work Block */}
+          <section aria-labelledby="heading-selected-work">
+            <div className={styles.sectionHeader}>
               <h2 id="heading-selected-work" className={styles.sectionTitle}>
                 <span>Selected Work & Systems</span>
-                <span className={styles.sectionSubtitle}>Verifiable Engineering Artifacts</span>
               </h2>
-              <div className={styles.projectList}>
-                {selectedWorkBlock.projects.map((proj: SelectedWorkProject) => (
-                  <div key={proj.id || proj.title} className={styles.projectCard}>
-                    <div className={styles.projectHeader}>
-                      <div className={styles.projectTitleGroup}>
-                        <h3 className={styles.projectTitle}>{proj.title}</h3>
-                        <div className={styles.projectTechs}>
-                          {proj.technologies?.map((t: string) => (
-                            <span key={t} className={styles.techChip}>
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+              <span className={styles.sectionBadge}>
+                {blocksRep?.verification_rate ? `${Math.round(blocksRep.verification_rate * 100)}% Verified` : "Verifiable Proofs"}
+              </span>
+            </div>
+            <div className={styles.projectsList}>
+              {selectedWorkBlock?.projects?.map((proj) => (
+                <div key={proj.id} className={styles.projectCard}>
+                  <div className={styles.projectTop}>
+                    <div className={styles.projectTitleArea}>
+                      <span className={styles.projectTitle}>{proj.title}</span>
+                      {proj.repository_url && (
+                        <a
+                          href={proj.repository_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.repoLink}
+                        >
+                          <ExternalLink size={12} />
+                          <span>Code</span>
+                        </a>
+                      )}
                     </div>
-
-                    <p className={styles.projectDesc}>{proj.description}</p>
-
-                    {/* Verified Claims */}
-                    {proj.evidence_claims && proj.evidence_claims.length > 0 && (
-                      <div className={styles.claimsList}>
-                        {proj.evidence_claims.map((c: EvidenceClaimItem) => (
-                          <div key={c.id || c.claim} className={styles.claimRow}>
-                            <span className={styles.claimText}>&ldquo;{c.claim}&rdquo;</span>
-                            <button
-                              type="button"
-                              className={styles.inspectBtn}
-                              onClick={() => handleInspectClaim(c.id || "", c.claim)}
-                            >
-                              <span>Inspect proof</span>
-                              <ArrowRight size={11} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
+                  <p className={styles.projectDesc}>{proj.description}</p>
+                  
+                  {proj.technologies && proj.technologies.length > 0 && (
+                    <div className={styles.techChipsRow}>
+                      {proj.technologies.map((t, idx) => (
+                        <span key={idx} className={styles.techChip}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {proj.evidence_claims && proj.evidence_claims.length > 0 && (
+                    <div className={styles.claimsList}>
+                      {proj.evidence_claims.map((claim) => (
+                        <div
+                          key={claim.id}
+                          className={styles.claimItem}
+                          onClick={() => {
+                            setSelectedProofClaim({
+                              id: claim.id,
+                              claim: claim.claim,
+                              confidence: claim.confidence,
+                              claim_type: claim.type,
+                              status: "user_confirmed",
+                              project_id: proj.id,
+                            } as Claim);
+                          }}
+                        >
+                          <span className={styles.claimCheck}>✓</span>
+                          <span className={styles.claimText}>{claim.claim}</span>
+                          <span className={styles.inspectProofHint}>Inspect Proof</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* 5. Technical Depth Block */}
           {technicalDepthBlock?.clusters && technicalDepthBlock.clusters.length > 0 && (
-            <section aria-labelledby="heading-technical-depth">
-              <h2 id="heading-technical-depth" className={styles.sectionTitle}>
-                <span>Technical Depth</span>
-                <span className={styles.sectionSubtitle}>Evidence-Backed Capability Clusters</span>
-              </h2>
-              <div className={styles.depthGrid}>
-                {technicalDepthBlock.clusters.map((cluster: TechnicalDepthCluster, idx: number) => (
-                  <div key={idx} className={styles.depthCard}>
-                    <span className={styles.depthDomain}>{cluster.domain}</span>
-                    <span className={styles.depthCaps}>{cluster.capabilities}</span>
-                    {cluster.evidence_note && (
-                      <span className={styles.depthNote}>{cluster.evidence_note}</span>
+            <section aria-labelledby="heading-tech-depth">
+              <div className={styles.sectionHeader}>
+                <h2 id="heading-tech-depth" className={styles.sectionTitle}>
+                  <span>Technical Depth & Capabilities</span>
+                </h2>
+                <span className={styles.sectionBadge}>Evidence Clustered</span>
+              </div>
+              <div className={styles.clustersGrid}>
+                {technicalDepthBlock.clusters.map((c, i) => (
+                  <div key={i} className={styles.clusterCard}>
+                    <span className={styles.clusterDomain}>{c.domain}</span>
+                    <span className={styles.clusterCaps}>{c.capabilities}</span>
+                    {c.evidence_note && (
+                      <span className={styles.clusterNote}>{c.evidence_note}</span>
                     )}
                   </div>
                 ))}
@@ -519,17 +577,21 @@ export function ResumeView({
           {/* 6. Current Trajectory Block */}
           {trajectoryBlock && (
             <section aria-labelledby="heading-trajectory">
-              <h2 id="heading-trajectory" className={styles.sectionTitle}>
-                <span>Current Trajectory</span>
-                <span className={styles.sectionSubtitle}>Next Horizons</span>
-              </h2>
+              <div className={styles.sectionHeader}>
+                <h2 id="heading-trajectory" className={styles.sectionTitle}>
+                  <span>Current Trajectory & Growth</span>
+                </h2>
+                <span className={styles.sectionBadge}>Horizon Analysis</span>
+              </div>
               <div className={styles.trajectoryCard}>
                 <p className={styles.trajectoryText}>{trajectoryBlock.trajectory_text}</p>
-                {trajectoryBlock.next_horizons && (
-                  <div className={styles.horizonsRow}>
-                    {trajectoryBlock.next_horizons.map((h: string) => (
-                      <span key={h} className={styles.horizonChip}>
-                        {h}
+                {trajectoryBlock.next_horizons && trajectoryBlock.next_horizons.length > 0 && (
+                  <div className={styles.horizonsList}>
+                    <span className={styles.horizonsLabel}>Active Horizons:</span>
+                    {trajectoryBlock.next_horizons.map((h, i) => (
+                      <span key={i} className={styles.horizonChip}>
+                        <ArrowRight size={11} />
+                        <span>{h}</span>
                       </span>
                     ))}
                   </div>
@@ -538,7 +600,7 @@ export function ResumeView({
             </section>
           )}
 
-          {/* 7. Work Experience Block */}
+          {/* 7. Experience Block */}
           {Boolean(experienceBlock?.experiences && experienceBlock.experiences.length > 0) && (
             <section aria-labelledby="heading-experience">
               <h2 id="heading-experience" className={styles.sectionTitle}>
@@ -554,11 +616,16 @@ export function ResumeView({
                       </span>
                     </div>
                     <span className={styles.historySubtitle}>{exp.company}</span>
-                    {exp.bullets?.map((b: string, bIdx: number) => (
-                      <p key={bIdx} className={styles.historyBullet}>
-                        &bull; {b}
-                      </p>
-                    ))}
+                    {exp.description && (
+                      <p className={styles.historyDesc}>{exp.description}</p>
+                    )}
+                    {exp.bullets && exp.bullets.length > 0 && (
+                      <ul className={styles.bulletsList}>
+                        {exp.bullets.map((b, bIdx) => (
+                          <li key={bIdx}>{b}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
               </div>
@@ -576,9 +643,11 @@ export function ResumeView({
                   <div key={i} className={styles.historyItem}>
                     <div className={styles.historyHeader}>
                       <span className={styles.historyTitle}>{edu.institution}</span>
-                      <span className={styles.historyDates}>
-                        {edu.start_year} – {edu.end_year}
-                      </span>
+                      {edu.start_year && (
+                        <span className={styles.historyDates}>
+                          {edu.start_year} – {edu.end_year || "Present"}
+                        </span>
+                      )}
                     </div>
                     <span className={styles.historySubtitle}>
                       {edu.degree} {edu.field_of_study ? `in ${edu.field_of_study}` : ""}
@@ -624,6 +693,8 @@ export function ResumeView({
                 ))}
               </div>
             </section>
+          )}
+            </>
           )}
           </motion.div>
         </AnimatePresence>

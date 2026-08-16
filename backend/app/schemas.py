@@ -365,8 +365,17 @@ class ResumeStrategyResponse(BaseModel):
     suggested_layout: str  # 'editorial', 'technical', 'modern_professional', 'research', 'executive'
     role_alignment_score: float  # 0.0 - 1.0
 
+class AchievementItem(BaseModel):
+    icon: str  # lucide icon key, assigned deterministically
+    title: str  # short claim headline, derived from Claim.claim
+    description: str  # the verified claim text itself
+    claim_id: Optional[str] = None  # lets the frontend wire proof inspection
+
+class AchievementsBlockPayload(BaseModel):
+    achievements: List[AchievementItem]
+
 class ResumeBlockItem(BaseModel):
-    block_type: str  # 'identity', 'signature', 'positioning', 'selected_work', 'technical_depth', 'trajectory', 'experience', 'education', 'certifications'
+    block_type: str  # 'identity', 'signature', 'positioning', 'selected_work', 'technical_depth', 'trajectory', 'experience', 'education', 'certifications', 'achievements'
     title: str
     subtitle: Optional[str] = None
     order: int

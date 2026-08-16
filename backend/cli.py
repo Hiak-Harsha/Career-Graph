@@ -46,7 +46,7 @@ def cmd_profile(args):
         print(f"  CAREER GRAPH IDENTITY: {user.name}")
         print("=======================================================")
         print(f"Headline:       {user.headline}")
-        print(f"Archetype:      {identity.engineering_archetype}")
+        print(f"Style / Archetype: {identity.project_style}")
         print(f"Primary Domains:{', '.join(identity.primary_domains) or 'None'}")
         print(f"Emerging:       {', '.join(identity.emerging_domains) or 'None'}")
         print(f"Verified Claims:{len(claims)}")
@@ -93,23 +93,33 @@ def cmd_resume(args):
     try:
         user = get_default_user(db)
         role = args.role or "AI / ML Engineer"
-        personality = args.personality or "modern_professional"
-        payload = build_dynamic_resume_payload(user, role, personality, db)
+        personality = args.personality or "featured"
+        payload = build_dynamic_resume_payload(user, role, db, personality)
         
         print(f"\n=== GENERATED RESUME REPRESENTATION [{personality.upper()}] ===")
-        print(f"Target Role: {payload['target_role']}")
-        print(f"Positioning: {payload['positioning_statement']}")
-        print(f"Blocks ({len(payload['blocks'])}):")
-        for b in payload['blocks']:
-            print(f"  • [{b.block_type.upper()}] {b.title}")
+        print(f"Target Role: {payload.get('target_role', role)}")
+        print(f"Positioning: {payload.get('summary', '')}")
+        print(f"Verified Claims ({len(payload.get('claims', []))}):")
+        for c in payload.get('claims', [])[:4]:
+            print(f"  [v] {c}")
         print("===============================================================\n")
     finally:
         db.close()
 
 
+def cmd_navigate(args):
+    """Launches the animated interactive TUI portfolio navigator."""
+    from backend.app.tui.app import run_tui
+    run_tui(reduced_motion=getattr(args, "reduced_motion", False))
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Career Graph CLI")
+    parser = argparse.ArgumentParser(description="Career Graph CLI & Portfolio Navigator")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # navigate (TUI)
+    nav_parser = subparsers.add_parser("navigate", help="Launch interactive animated TUI portfolio navigator")
+    nav_parser.add_argument("--reduced-motion", action="store_true", help="Disable typewriter and stagger animations")
 
     # profile
     subparsers.add_parser("profile", help="Show current Career Graph profile & archetype")
@@ -124,13 +134,15 @@ def main():
     # resume
     resume_parser = subparsers.add_parser("resume", help="Generate targeted resume representation")
     resume_parser.add_argument("--role", default="AI / ML Engineer", help="Target job role")
-    resume_parser.add_argument("--personality", default="modern_professional", choices=["modern_professional", "technical", "editorial", "research", "executive"])
+    resume_parser.add_argument("--personality", default="featured", choices=["featured", "modern_professional", "technical", "editorial", "research", "executive"])
 
     args = parser.parse_args()
 
     init_db()
 
-    if args.command == "profile":
+    if args.command == "navigate":
+        cmd_navigate(args)
+    elif args.command == "profile":
         cmd_profile(args)
     elif args.command == "ideas":
         cmd_ideas(args)
@@ -142,3 +154,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

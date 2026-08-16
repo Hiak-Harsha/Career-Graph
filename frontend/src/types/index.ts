@@ -235,6 +235,9 @@ export interface ResumeProject {
   title: string;
   description?: string;
   skills?: string[];
+  technologies?: string[];
+  claims?: string[];
+  repository_url?: string;
   narrative: string;
   evidence_links: ResumeEvidenceLink[];
   selected_reasons?: string[];
@@ -292,7 +295,19 @@ export type ResumePersonality =
   | "technical"
   | "modern_professional"
   | "research"
-  | "executive";
+  | "executive"
+  | "featured";
+
+export interface AchievementItem {
+  icon: string;
+  title: string;
+  description: string;
+  claim_id?: string;
+}
+
+export interface AchievementsBlockPayload {
+  achievements?: AchievementItem[];
+}
 
 export interface DomainSignatureNode {
   id: string;
@@ -369,6 +384,7 @@ export interface SelectedWorkProject {
   title: string;
   description: string;
   technologies?: string[];
+  repository_url?: string;
   evidence_claims?: EvidenceClaimItem[];
 }
 
@@ -431,7 +447,8 @@ export interface ResumeBlockItem {
     | "trajectory"
     | "experience"
     | "education"
-    | "certifications";
+    | "certifications"
+    | "achievements";
   title: string;
   subtitle?: string;
   order: number;

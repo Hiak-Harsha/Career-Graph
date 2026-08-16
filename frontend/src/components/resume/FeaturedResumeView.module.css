@@ -1,0 +1,280 @@
+.container {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.75rem;
+  background: var(--bg-surface, #0f121d);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-lg, 12px);
+  padding: 2.25rem;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 768px) {
+  .container {
+    grid-template-columns: 1fr;
+    padding: 1.25rem;
+    gap: 1.25rem;
+  }
+}
+
+/* ─── Main Column ──────────────────────────────────────────────────────────── */
+.mainCol {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.headerArea {
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  padding-bottom: 1.25rem;
+}
+
+.nameRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.candidateName {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.roleHeadline {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent, #38bdf8);
+  margin-top: 0.25rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.contactRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.contactItem {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.summaryCard {
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 3px solid var(--accent, #38bdf8);
+  padding: 1rem 1.25rem;
+  border-radius: 0 8px 8px 0;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.projectCard {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: var(--radius-md, 8px);
+  padding: 1.1rem;
+  margin-bottom: 1rem;
+  transition: border-color var(--t-fast, 150ms) ease;
+}
+
+.projectCard:hover {
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.projectTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.projectTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+}
+
+.projectSkills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.bulletList {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0 0;
+}
+
+.bulletItem {
+  position: relative;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #cbd5e1);
+  line-height: 1.5;
+  margin-bottom: 0.35rem;
+}
+
+.bulletItem::before {
+  content: "•";
+  position: absolute;
+  left: 0.2rem;
+  color: var(--accent, #38bdf8);
+  font-weight: bold;
+}
+
+.experienceItem {
+  margin-bottom: 1rem;
+}
+
+.expHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+  color: var(--text-primary, #ffffff);
+  font-weight: 600;
+}
+
+.expMeta {
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+  margin-bottom: 0.35rem;
+}
+
+/* ─── Sidebar Column ───────────────────────────────────────────────────────── */
+.sidebarCol {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  padding-left: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .sidebarCol {
+    border-left: none;
+    border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    padding-left: 0;
+    padding-top: 1.5rem;
+  }
+}
+
+.achievementCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: rgba(56, 189, 248, 0.04);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: 8px;
+  padding: 0.85rem;
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+  transition: all var(--t-fast, 150ms) ease;
+}
+
+.achievementCard:hover {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.35);
+  transform: translateY(-1px);
+}
+
+.iconBadge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(56, 189, 248, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.achievementInfo {
+  flex: 1;
+}
+
+.achievementTitle {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin-bottom: 0.2rem;
+}
+
+.achievementDesc {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.4;
+}
+
+.inspectHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  color: var(--accent, #38bdf8);
+  margin-top: 0.35rem;
+}
+
+.skillPillGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.skillPill {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 9999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #cbd5e1);
+  font-weight: 500;
+}
+
+.exploringCard {
+  background: rgba(16, 185, 129, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.exploringTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #34d399;
+  margin-bottom: 0.2rem;
+}
+
+.exploringDesc {
+  font-size: 0.74rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.4;
+}

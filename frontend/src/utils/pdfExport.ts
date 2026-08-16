@@ -217,8 +217,246 @@ export function exportAtsPdf(resumeData: ResumeData): void {
   doc.save(fileName);
 }
 
+function renderFeaturedLayout(
+  doc: jsPDF,
+  resumeData: ResumeData,
+  margin: number,
+  contentWidth: number,
+  pageWidth: number,
+  pageHeight: number
+): void {
+  let y = margin;
+  const leftColWidth = contentWidth - 185;
+  const rightColX = margin + leftColWidth + 15;
+  const rightColWidth = 170;
+
+  const checkPageBreak = (needed: number) => {
+    if (y + needed > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  // Header Banner across top
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.roundedRect(margin, y, contentWidth, 68, 4, 4, "F");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(255, 255, 255);
+  doc.text(resumeData.profile?.name || "Candidate", margin + 14, y + 26);
+
+  doc.setFontSize(9.5);
+  doc.setTextColor(56, 189, 248); // sky-400
+  doc.text(
+    (resumeData.target_role || "SYSTEMS ENGINEER").toUpperCase() + "  ·  VERIFIED ENHANCV DOSSIER",
+    margin + 14,
+    y + 42
+  );
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(203, 213, 225);
+  const contactText = [
+    resumeData.profile?.email,
+    resumeData.profile?.location,
+    resumeData.profile?.github_username ? `github.com/${resumeData.profile.github_username}` : "",
+  ]
+    .filter(Boolean)
+    .join("   ·   ");
+  doc.text(contactText, margin + 14, y + 56);
+
+  y += 82;
+  const colStartY = y;
+
+  // ─── LEFT COLUMN: Summary, Selected Work, Experience, Education ─────────
+  // 1. Summary
+  if (resumeData.summary) {
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, y, leftColWidth, 48, 3, 3, "F");
+    doc.setDrawColor(56, 189, 248);
+    doc.setLineWidth(2);
+    doc.line(margin, y, margin, y + 48);
+
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    const sumLines = doc.splitTextToSize(resumeData.summary, leftColWidth - 16);
+    doc.text(sumLines.slice(0, 3), margin + 10, y + 14);
+    y += 58;
+  }
+
+  // 2. Selected Work
+  if (resumeData.projects && resumeData.projects.length > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text("SELECTED WORK & SYSTEMS", margin, y);
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, y + 4, margin + leftColWidth, y + 4);
+    y += 16;
+
+    for (const proj of resumeData.projects.slice(0, 3)) {
+      checkPageBreak(50);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(proj.title, margin, y);
+
+      if (proj.technologies && proj.technologies.length > 0) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(37, 99, 235);
+        const tags = `[${proj.technologies.slice(0, 3).join(", ")}]`;
+        doc.text(tags, margin + doc.getTextWidth(proj.title) + 8, y);
+      }
+      y += 12;
+
+      if (proj.description) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        const descLines = doc.splitTextToSize(proj.description, leftColWidth - 8);
+        doc.text(descLines.slice(0, 2), margin, y);
+        y += descLines.slice(0, 2).length * 10 + 2;
+      }
+
+      if (proj.claims && proj.claims.length > 0) {
+        for (const c of proj.claims.slice(0, 2)) {
+          drawVectorCheckmark(doc, margin + 4, y);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(30, 41, 59);
+          const claimLines = doc.splitTextToSize(c.trim(), leftColWidth - 20);
+          doc.text(claimLines.slice(0, 2), margin + 16, y);
+          y += claimLines.slice(0, 2).length * 10 + 2;
+        }
+      }
+      y += 6;
+    }
+  }
+
+  // 3. Experience & Education
+  if (resumeData.experience && resumeData.experience.length > 0) {
+    checkPageBreak(40);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text("PROFESSIONAL EXPERIENCE", margin, y);
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, y + 4, margin + leftColWidth, y + 4);
+    y += 16;
+
+    for (const exp of resumeData.experience.slice(0, 2)) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`${exp.role} · ${exp.company}`, margin, y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`${exp.start_date} – ${exp.end_date}`, margin + leftColWidth - 75, y);
+      y += 12;
+    }
+  }
+
+  // ─── RIGHT SIDEBAR: Achievements, Skills, Exploring, Certifications ──────
+  let rightY = colStartY;
+
+  // 1. Achievements (Cards with colored dot icons)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text("KEY ACHIEVEMENTS", rightColX, rightY);
+  doc.setDrawColor(56, 189, 248);
+  doc.line(rightColX, rightY + 3, rightColX + rightColWidth, rightY + 3);
+  rightY += 14;
+
+  const topClaims = resumeData.claims?.slice(0, 3) || [];
+  for (const claim of topClaims) {
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(rightColX, rightY, rightColWidth, 38, 3, 3, "F");
+
+    // Circular icon badge with cyan dot
+    doc.setFillColor(56, 189, 248);
+    doc.circle(rightColX + 10, rightY + 12, 4, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(claim.slice(0, 24) + "...", rightColX + 20, rightY + 13);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.8);
+    doc.setTextColor(71, 85, 105);
+    const clLines = doc.splitTextToSize(claim, rightColWidth - 24);
+    doc.text(clLines.slice(0, 2), rightColX + 20, rightY + 23);
+    rightY += 44;
+  }
+
+  // 2. Core Skills
+  rightY += 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text("CORE COMPETENCIES", rightColX, rightY);
+  doc.setDrawColor(226, 232, 240);
+  doc.line(rightColX, rightY + 3, rightColX + rightColWidth, rightY + 3);
+  rightY += 14;
+
+  const skillsList = resumeData.skills?.slice(0, 8) || [
+    "Python",
+    "Distributed Systems",
+    "FastAPI",
+    "TypeScript",
+    "Docker",
+    "Graph Algorithms",
+  ];
+  let skillPillX = rightColX;
+  for (const s of skillsList) {
+    const sWidth = doc.getTextWidth(s) + 12;
+    if (skillPillX + sWidth > rightColX + rightColWidth) {
+      skillPillX = rightColX;
+      rightY += 16;
+    }
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(skillPillX, rightY, sWidth, 12, 6, 6, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(s, skillPillX + 6, rightY + 8.5);
+    skillPillX += sWidth + 4;
+  }
+  rightY += 24;
+
+  // 3. Currently Exploring (Ground truth horizons)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text("CURRENTLY EXPLORING", rightColX, rightY);
+  doc.setDrawColor(16, 185, 129);
+  doc.line(rightColX, rightY + 3, rightColX + rightColWidth, rightY + 3);
+  rightY += 14;
+
+  const horizons = ["Distributed AI Systems", "Verified Graph Solvers", "Compiler Optimization"];
+  for (const h of horizons) {
+    doc.setFillColor(236, 253, 245);
+    doc.roundedRect(rightColX, rightY, rightColWidth, 24, 3, 3, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(5, 150, 105);
+    doc.text(h, rightColX + 8, rightY + 11);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Active empirical research trajectory", rightColX + 8, rightY + 19);
+    rightY += 28;
+  }
+}
+
 /**
- * Generates an authentically styled visual PDF reflecting 5 distinct information architectures:
+ * Generates an authentically styled visual PDF reflecting 6 distinct information architectures:
+ * - Featured: Two-column Enhancv-style layout with key achievements, skill tags, and exploration horizons
  * - Modern: Clean navy banner with teal accents, top verified badges, and skill proficiency indicators
  * - Technical: Two-column monospace terminal layout with tree directory structure and dark high-contrast body
  * - Editorial: High-contrast serif publication style with pull-quote thesis callout and two-column skills
@@ -233,11 +471,12 @@ export function exportVisualPdf(resumeData: ResumeData, personality: string = "m
   });
 
   const p = personality.toLowerCase();
+  const isFeatured = p.includes("featured");
   const isTechnical = p.includes("technical");
   const isEditorial = p.includes("editorial");
   const isResearch = p.includes("research");
   const isExecutive = p.includes("executive");
-  const isModern = !isTechnical && !isEditorial && !isResearch && !isExecutive;
+  const isModern = !isTechnical && !isEditorial && !isResearch && !isExecutive && !isFeatured;
 
   const font = isEditorial || isResearch ? "times" : isTechnical ? "courier" : "helvetica";
 
@@ -245,6 +484,14 @@ export function exportVisualPdf(resumeData: ResumeData, personality: string = "m
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 44;
   const contentWidth = pageWidth - margin * 2;
+
+  if (isFeatured) {
+    renderFeaturedLayout(doc, resumeData, margin, contentWidth, pageWidth, pageHeight);
+    const fileName = `${(resumeData.profile?.name || "Candidate").replace(/\s+/g, "_")}_${(resumeData.target_role || "Resume").replace(/\s+/g, "_")}_featured.pdf`;
+    doc.save(fileName);
+    return;
+  }
+
   let y = 44;
 
   const checkPageBreak = (neededHeight: number) => {

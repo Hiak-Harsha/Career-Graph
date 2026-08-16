@@ -44,7 +44,7 @@ from backend.app.schemas import (
     ResumeBlockItem, ResumeBlockRepresentation,
     ResumeValidationRequest, ResumeValidationResponse,
     ResumeCritiqueRequest, ResumeCritiqueResponse, ReadinessDimension,
-    ImproveRepresentationRequest
+    ImproveRepresentationRequest, AchievementItem, AchievementsBlockPayload
 )
 from backend.app.auth import get_current_user, create_access_token, exchange_github_code, encrypt_token, decrypt_token
 from backend.app.config import APP_ENV, OPENAI_API_KEY, ANTHROPIC_API_KEY, DEMO_MODE
@@ -57,7 +57,8 @@ from backend.app.analyzer import (
     anthropic_client,
     update_domain_progress_scores,
     update_skill_progress_scores,
-    save_career_snapshot
+    save_career_snapshot,
+    _icon_for_domain
 )
 
 @asynccontextmanager
@@ -1402,6 +1403,31 @@ def generate_blocks_representation_from_strategy(user: User, strategy: ResumeStr
         }
     ))
 
+    # 10. Achievements Block (Featured Layout only — Sidebar Cards)
+    if layout == "featured":
+        top_claims = (
+            db.query(Claim)
+            .filter(Claim.user_id == user.id, Claim.status == "user_confirmed")
+            .order_by(Claim.confidence.desc())
+            .limit(4)
+            .all()
+        )
+        achievements = [
+            AchievementItem(
+                icon=_icon_for_domain(getattr(c, "related_domain", None)),
+                title=c.claim[:48] + ("…" if len(c.claim) > 48 else ""),
+                description=c.claim,
+                claim_id=str(c.id),
+            )
+            for c in top_claims
+        ]
+        blocks.append(ResumeBlockItem(
+            block_type="achievements",
+            title="Key Achievements & Verified Proofs",
+            order=len(blocks) + 1,
+            content_payload=AchievementsBlockPayload(achievements=achievements).model_dump(),
+        ))
+
     # Calculate real empirical verification & coverage rates from confirmed graph evidence
     total_user_claims = claims
     confirmed_claims_count = sum(1 for c in total_user_claims if c.status == "user_confirmed")
@@ -1420,6 +1446,30 @@ def generate_blocks_representation_from_strategy(user: User, strategy: ResumeStr
         generated_at=datetime.now(timezone.utc)
     )
 
+
+def build_featured_resume(user: User, db: Session) -> ResumeBlockRepresentation:
+    """Evaluates candidate competencies against available roles and returns the optimal Featured Resume."""
+    candidate_roles = [
+        "AI / ML Engineer",
+        "Backend Systems Engineer",
+        "Research Engineer",
+        "Full Stack Engineer"
+    ]
+    scored = [
+        (role, generate_resume_strategy_for_role(user, role, db, "featured"))
+        for role in candidate_roles
+    ]
+    _, best_strategy = max(scored, key=lambda pair: pair[1].role_alignment_score)
+    return generate_blocks_representation_from_strategy(user, best_strategy, db, "featured")
+
+
+@app.post("/api/resume/featured/auto-generate", response_model=ResumeBlockRepresentation)
+def auto_generate_featured_resume(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Auto-evaluates candidate competencies against candidate roles and generates the optimal 2-column Featured Resume."""
+    return build_featured_resume(current_user, db)
 
 
 @app.get("/api/resume/identity", response_model=ProfessionalIdentityResponse)

@@ -13,4 +13,5 @@ python-multipart
 pytest
 alembic
 psycopg2-binary
+textual>=0.85.0
 

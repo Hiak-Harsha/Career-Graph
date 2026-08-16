@@ -1,4 +1,15 @@
+import sys
 import os
+from pathlib import Path
+
+# Ensure root directory and backend directory are always resolvable
+_repo_root = str(Path(__file__).resolve().parent.parent.parent)
+_backend_dir = str(Path(__file__).resolve().parent.parent)
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
 import math
 import json
 from contextlib import asynccontextmanager
@@ -776,6 +787,25 @@ def get_resume_by_id(id: uuid.UUID, current_user: User = Depends(get_current_use
     }
 
 
+def _to_json_safe(obj: Any) -> Any:
+    """Recursively convert UUID, datetime, sets, and Pydantic models to JSON-safe primitives."""
+    if obj is None:
+        return None
+    if isinstance(obj, uuid.UUID):
+        return str(obj)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, (list, tuple, set)):
+        return [_to_json_safe(i) for i in obj]
+    if isinstance(obj, dict):
+        return {str(k): _to_json_safe(v) for k, v in obj.items()}
+    if hasattr(obj, "model_dump"):
+        return _to_json_safe(obj.model_dump())
+    if hasattr(obj, "dict"):
+        return _to_json_safe(obj.dict())
+    return obj
+
+
 @app.post("/api/resumes", response_model=ResumeResponse)
 def create_or_save_resume(
     req: ResumeSaveRequest,
@@ -787,13 +817,11 @@ def create_or_save_resume(
     projects_data = []
     if req.projects:
         for p in req.projects:
-            p_dict = p.model_dump()
-            p_dict["id"] = str(p_dict["id"])
-            projects_data.append(p_dict)
+            projects_data.append(_to_json_safe(p))
     else:
         # Fallback to dynamic build
         dynamic = build_dynamic_resume_payload(current_user, req.target_role or "Software Engineer", db)
-        projects_data = dynamic["projects"]
+        projects_data = _to_json_safe(dynamic["projects"])
         if not req.summary:
             req.summary = dynamic["summary"]
         if not req.skills:
@@ -805,13 +833,13 @@ def create_or_save_resume(
         target_role=req.target_role or "Software Engineer",
         variant=req.variant or "visual",
         summary=req.summary or "",
-        skills_json=req.skills or [],
-        claims_json=req.claims or [],
+        skills_json=_to_json_safe(req.skills or []),
+        claims_json=_to_json_safe(req.claims or []),
         projects_json=projects_data,
-        experience_json=req.experience or [],
-        education_json=req.education or [],
-        certifications_json=req.certifications or [],
-        links_json=req.links or [],
+        experience_json=_to_json_safe(req.experience or []),
+        education_json=_to_json_safe(req.education or []),
+        certifications_json=_to_json_safe(req.certifications or []),
+        links_json=_to_json_safe(req.links or []),
         is_primary=req.is_primary or False
     )
     db.add(resume)
@@ -872,24 +900,22 @@ def update_resume(
     if req.summary is not None:
         resume.summary = req.summary
     if req.skills is not None:
-        resume.skills_json = req.skills
+        resume.skills_json = _to_json_safe(req.skills)
     if req.claims is not None:
-        resume.claims_json = req.claims
+        resume.claims_json = _to_json_safe(req.claims)
     if req.projects is not None:
         projects_data = []
         for p in req.projects:
-            p_dict = p.model_dump()
-            p_dict["id"] = str(p_dict["id"])
-            projects_data.append(p_dict)
+            projects_data.append(_to_json_safe(p))
         resume.projects_json = projects_data
     if req.experience is not None:
-        resume.experience_json = req.experience
+        resume.experience_json = _to_json_safe(req.experience)
     if req.education is not None:
-        resume.education_json = req.education
+        resume.education_json = _to_json_safe(req.education)
     if req.certifications is not None:
-        resume.certifications_json = req.certifications
+        resume.certifications_json = _to_json_safe(req.certifications)
     if req.links is not None:
-        resume.links_json = req.links
+        resume.links_json = _to_json_safe(req.links)
     if req.is_primary is not None:
         resume.is_primary = req.is_primary
 

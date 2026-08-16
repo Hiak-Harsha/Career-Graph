@@ -508,6 +508,7 @@ export type RecruiterMatch = RecruiterData;
 
 export type ActiveView =
   | "dashboard"
+  | "strata"
   | "portfolio"
   | "graph"
   | "projects"

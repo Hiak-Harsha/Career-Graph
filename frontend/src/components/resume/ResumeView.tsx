@@ -96,6 +96,8 @@ export function ResumeView({
   const [isEditing, setIsEditing] = useState(false);
   const [editedPositioning, setEditedPositioning] = useState(() => resumeData?.summary || "");
   const [isImprovingSummary, setIsImprovingSummary] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<"idle" | "saved" | "error">("idle");
+  const [saveErrorMessage, setSaveErrorMessage] = useState("");
 
   // Fetch block-based structured representation
   useEffect(() => {
@@ -167,11 +169,21 @@ export function ResumeView({
 
   const handleSaveResume = async () => {
     if (onSave) {
-      await onSave({
-        summary: editedPositioning,
-        target_role: selectedRole,
-      });
-      setIsEditing(false);
+      try {
+        setSaveFeedback("idle");
+        setSaveErrorMessage("");
+        await onSave({
+          summary: editedPositioning,
+          target_role: selectedRole,
+          variant: personality,
+        });
+        setSaveFeedback("saved");
+        setIsEditing(false);
+        setTimeout(() => setSaveFeedback("idle"), 3500);
+      } catch (err: unknown) {
+        setSaveFeedback("error");
+        setSaveErrorMessage(err instanceof Error ? err.message : "Failed to save resume.");
+      }
     }
   };
 
@@ -256,35 +268,47 @@ export function ResumeView({
 
         <div className={styles.actionsGroup}>
           {onSave && (
-            <button
-              type="button"
-              className={`btn ${isEditing ? "btn-primary" : "btn-secondary"}`}
-              onClick={() => {
-                if (isEditing) {
-                  handleSaveResume();
-                } else {
-                  setIsEditing(true);
-                }
-              }}
-              disabled={saving}
-            >
-              {saving ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : isEditing ? (
-                <>
-                  <Check size={14} />
-                  <span>Save Changes</span>
-                </>
-              ) : (
-                <>
-                  <Edit3 size={14} />
-                  <span>Edit Resume</span>
-                </>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <button
+                type="button"
+                className={`btn ${isEditing ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => {
+                  if (isEditing) {
+                    handleSaveResume();
+                  } else {
+                    setIsEditing(true);
+                  }
+                }}
+                disabled={saving}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : isEditing ? (
+                  <>
+                    <Check size={14} />
+                    <span>Save Changes</span>
+                  </>
+                ) : (
+                  <>
+                    <Edit3 size={14} />
+                    <span>Edit Resume</span>
+                  </>
+                )}
+              </button>
+              {saveFeedback === "saved" && (
+                <span style={{ color: "#34d399", fontSize: "0.8rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                  <Check size={13} /> Saved
+                </span>
               )}
-            </button>
+              {saveFeedback === "error" && (
+                <span style={{ color: "#f87171", fontSize: "0.8rem", fontWeight: 500, display: "flex", alignItems: "center", gap: "0.25rem" }} title={saveErrorMessage}>
+                  {saveErrorMessage || "Save failed"}
+                </span>
+              )}
+            </div>
           )}
 
           <button

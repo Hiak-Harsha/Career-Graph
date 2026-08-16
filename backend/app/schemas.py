@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, HttpUrl, ConfigDict
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, date
 from uuid import UUID
 
@@ -238,24 +238,27 @@ class PortfolioResponse(BaseModel):
 
 # Persisted Resume Schemas
 class ResumeItem(BaseModel):
-    id: UUID
+    id: Optional[Union[UUID, str]] = None
     title: str
-    description: str
-    skills: List[str]
-    evidence_links: List[Dict[str, str]]
-    narrative: str
+    description: Optional[str] = ""
+    skills: Optional[List[Any]] = []
+    evidence_links: Optional[List[Any]] = []
+    narrative: Optional[str] = ""
     selected_reasons: Optional[List[str]] = []
     included: Optional[bool] = True
     custom_bullets: Optional[List[str]] = []
+    claims: Optional[List[Any]] = []
+    technologies: Optional[List[str]] = []
+    summary: Optional[str] = ""
 
 class ResumeResponse(BaseModel):
     id: Optional[UUID] = None
     target_role: str
-    profile: UserResponse
+    profile: Optional[UserResponse] = None
     summary: str
-    projects: List[ResumeItem]
-    skills: List[str]
-    claims: List[str]
+    projects: List[Any]
+    skills: List[Any]
+    claims: List[Any]
     variant: Optional[str] = "visual"
     title: Optional[str] = "Master Resume"
     experience: Optional[List[Dict[str, Any]]] = []
@@ -271,9 +274,9 @@ class ResumeSaveRequest(BaseModel):
     target_role: Optional[str] = "Software Engineer"
     variant: Optional[str] = "visual"
     summary: Optional[str] = ""
-    skills: Optional[List[str]] = []
-    claims: Optional[List[str]] = []
-    projects: Optional[List[ResumeItem]] = []
+    skills: Optional[List[Any]] = []
+    claims: Optional[List[Any]] = []
+    projects: Optional[List[Any]] = []
     experience: Optional[List[Dict[str, Any]]] = []
     education: Optional[List[Dict[str, Any]]] = []
     certifications: Optional[List[Dict[str, Any]]] = []

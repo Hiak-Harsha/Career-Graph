@@ -1,3 +1,15 @@
+import sys
+import os
+from pathlib import Path
+
+# Ensure root directory and backend directory are always resolvable
+_repo_root = str(Path(__file__).resolve().parent.parent.parent)
+_backend_dir = str(Path(__file__).resolve().parent.parent)
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -701,6 +713,78 @@ def test_public_portfolio_security(client, db):
     res_valid = unauth.get(f"/api/portfolio/public/{user.github_username}")
     assert res_valid.status_code == 200
     assert res_valid.json()["profile"]["github_username"] == user.github_username
+
+
+def test_resume_save_and_update_with_nested_uuids(client, db):
+    import uuid
+    # Construct a realistic resume payload with nested UUID claims, skills, experience, certifications
+    claim_id = str(uuid.uuid4())
+    proj_id = str(uuid.uuid4())
+    payload = {
+        "title": "UUID Serialization Test Resume",
+        "target_role": "Distributed Systems Engineer",
+        "variant": "technical",
+        "summary": "Experienced engineer with verified distributed systems claims.",
+        "skills": [
+            {"id": str(uuid.uuid4()), "name": "Rust", "category": "LANGUAGES"},
+            {"id": str(uuid.uuid4()), "name": "Raft Consensus", "category": "DISTRIBUTED_SYSTEMS"}
+        ],
+        "claims": [
+            {
+                "id": claim_id,
+                "project_id": proj_id,
+                "claim": "Implemented linearizable consensus layer",
+                "confidence": 0.95,
+                "evidence": [{"id": str(uuid.uuid4()), "type": "commit", "hash": "abc1234"}]
+            }
+        ],
+        "projects": [
+            {
+                "id": proj_id,
+                "title": "Raft-KV",
+                "summary": "Replicated state machine key-value store",
+                "technologies": ["Rust", "gRPC"],
+                "claims": [
+                    {"id": claim_id, "claim": "Implemented linearizable consensus layer", "confidence": 0.95}
+                ]
+            }
+        ],
+        "experience": [
+            {"id": str(uuid.uuid4()), "role": "Systems Engineer", "company": "Core Infrastructure"}
+        ],
+        "education": [
+            {"id": str(uuid.uuid4()), "degree": "B.S. Computer Science", "institution": "Tech University"}
+        ],
+        "certifications": [
+            {"id": str(uuid.uuid4()), "name": "CKA: Certified Kubernetes Administrator"}
+        ],
+        "links": [
+            {"id": str(uuid.uuid4()), "label": "GitHub", "url": "https://github.com/example/raft-kv"}
+        ]
+    }
+
+    # 1. POST /api/resumes
+    res = client.post("/api/resumes", json=payload)
+    assert res.status_code == 200
+    created = res.json()
+    assert created["title"] == "UUID Serialization Test Resume"
+    assert len(created["claims"]) == 1
+    assert created["claims"][0]["id"] == claim_id
+    resume_id = created["id"]
+
+    # 2. PUT /api/resumes/{id} with new claims/experience
+    payload["title"] = "Updated UUID Serialization Test Resume"
+    payload["claims"].append({
+        "id": str(uuid.uuid4()),
+        "claim": "Reduced p99 consensus latency to 4ms",
+        "confidence": 0.98
+    })
+    put_res = client.put(f"/api/resumes/{resume_id}", json=payload)
+    assert put_res.status_code == 200
+    updated = put_res.json()
+    assert updated["title"] == "Updated UUID Serialization Test Resume"
+    assert len(updated["claims"]) == 2
+
 
 
 

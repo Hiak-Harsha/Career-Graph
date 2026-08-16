@@ -19,6 +19,7 @@ import {
   Globe,
   Menu,
   X,
+  Layers,
 } from "lucide-react";
 import { GithubIcon } from "./icons/GithubIcon";
 import { motion } from "framer-motion";
@@ -40,6 +41,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { id: "dashboard", label: "Overview", icon: LayoutDashboard },
+      { id: "strata", label: "Strata Core", icon: Layers },
       { id: "portfolio", label: "Living Portfolio", icon: Globe },
       { id: "graph", label: "Career Graph", icon: Network },
     ],

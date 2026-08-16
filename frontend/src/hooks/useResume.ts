@@ -47,27 +47,32 @@ export function useResume() {
           method: "PUT",
           body: JSON.stringify(payload),
         });
-        if (res.ok) {
-          const updated: ResumeData = await res.json();
-          setResumeData(updated);
-          fetchSavedResumes();
-          return updated;
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || `Server error (${res.status}) while updating resume.`);
         }
+        const updated: ResumeData = await res.json();
+        setResumeData(updated);
+        fetchSavedResumes();
+        return updated;
       } else {
         const res = await apiFetch("/resumes", {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        if (res.ok) {
-          const created: ResumeData = await res.json();
-          setResumeData(created);
-          fetchSavedResumes();
-          return created;
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || `Server error (${res.status}) while saving resume.`);
         }
+        const created: ResumeData = await res.json();
+        setResumeData(created);
+        fetchSavedResumes();
+        return created;
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to save resume.";
       setError(msg);
+      throw err;
     } finally {
       setSaving(false);
     }

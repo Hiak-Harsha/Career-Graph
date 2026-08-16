@@ -43,6 +43,9 @@ import { ResumeView } from "../components/resume/ResumeView";
 // Portfolio
 import { PortfolioView } from "../components/portfolio/PortfolioView";
 
+// Strata
+import { StrataView } from "../components/strata/StrataView";
+
 // Evidence
 import { EvidenceDrawer } from "../components/evidence/EvidenceDrawer";
 import { GitHubAuthModal } from "../components/ui/GitHubAuthModal";
@@ -400,6 +403,17 @@ export default function CareerGraphApp() {
                   }}
                 />
 
+              )}
+              {activeView === "strata" && (
+                <StrataView
+                  domainProgress={domainProgress}
+                  skillProgress={skillsProgress}
+                  projects={projects}
+                  onInspectDomain={(domId) => {
+                    const dp = domainProgress.find((d) => d.domain?.id === domId);
+                    if (dp) setSelectedGraphDomain(dp);
+                  }}
+                />
               )}
               {activeView === "graph" && (
                 <CareerGraphView

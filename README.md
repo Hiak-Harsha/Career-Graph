@@ -5,7 +5,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black.svg?style=flat&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19.2-61DAFB.svg?style=flat&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?style=flat&logo=typescript)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/Tests-57%2F57%20Passed-success.svg?style=flat)]()
+[![Tests](https://img.shields.io/badge/Tests-58%2F58%20Passed-success.svg?style=flat)]()
 
 **Career Graph** is an evidence-led career intelligence platform that connects your GitHub repositories, code commits, and verified projects into a dynamic, interactive knowledge graph. It transforms verified work into a **Living Portfolio**, an **Interactive Living Career Graph with Telemetry**, a **Resume Intelligence Engine with AI Polish**, a **Thought Lineage & Idea Incubator**, and an automated **Recruiter Matching Engine**.
 
@@ -170,15 +170,15 @@ python cli.py resume generate --role "Backend Systems Engineer"
 
 Career Graph is validated with comprehensive automated test suites across both layers:
 
-### Backend Pytest Suite (18/18 Tests Passing)
+### Backend Pytest Suite (19/19 Tests Passing)
 ```bash
 cd backend
-$env:PYTHONPATH="."
-.\.venv\Scripts\pytest tests/ -v
+python -m pytest tests/ -v
 ```
 
 Tests verify:
 - JWT Bearer Authentication & 401 unauthenticated security rejection
+- Nested UUID & DateTime JSON serialization across resume creation & updates
 - Public portfolio identifier scoping & demo isolation
 - Idea maturity persistence, lineage notes, and auto-drafting
 - Dynamic 6-dimensional recruiter candidate critique

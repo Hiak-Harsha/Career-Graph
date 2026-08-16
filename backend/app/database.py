@@ -1,4 +1,15 @@
+import sys
 import os
+from pathlib import Path
+
+# Ensure root directory and backend directory are always resolvable
+_repo_root = str(Path(__file__).resolve().parent.parent.parent)
+_backend_dir = str(Path(__file__).resolve().parent.parent)
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from backend.app.config import DATABASE_URL

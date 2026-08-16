@@ -275,8 +275,8 @@ export default function CareerGraphApp() {
   };
 
   const isEmpty = !loading && projects.length === 0;
-  const displayError = error || localError;
   const displaySuccess = success || localSuccess;
+  const displayError = displaySuccess ? "" : (error || localError);
 
   // Clear local messages after 5s
   useEffect(() => {
@@ -287,6 +287,12 @@ export default function CareerGraphApp() {
     }, 5000);
     return () => clearTimeout(t);
   }, [localError, localSuccess]);
+
+  const handleRunDemo = async () => {
+    setLocalError("");
+    await runDemo();
+  };
+
 
   return (
     <div className={styles.layout}>
@@ -306,9 +312,10 @@ export default function CareerGraphApp() {
             : "idle"
         }
         handleGithubSync={() => setGithubModalOpen(true)}
-        handleRunDemoSync={runDemo}
+        handleRunDemoSync={handleRunDemo}
         pendingReviewCount={pendingReviewCount}
       />
+
 
       <main
         className={`${styles.main} ${

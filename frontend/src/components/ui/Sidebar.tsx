@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import styles from "./Sidebar.module.css";
 import type { UserProfile } from "../../types";
 import {
@@ -17,6 +17,8 @@ import {
   History,
   Sparkles,
   Globe,
+  Menu,
+  X,
 } from "lucide-react";
 import { GithubIcon } from "./icons/GithubIcon";
 
@@ -97,6 +99,8 @@ export function Sidebar({
   handleRunDemoSync,
   pendingReviewCount = 0,
 }: SidebarProps) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const dotClass =
     syncing
       ? "status-dot status-dot-syncing animate-pulse-dot"
@@ -106,10 +110,15 @@ export function Sidebar({
       ? "status-dot status-dot-error"
       : "status-dot status-dot-inactive";
 
+  const handleNavClick = (id: string) => {
+    setActiveView(id);
+    setMobileMenuOpen(false);
+  };
+
   return (
-    <aside className={styles.sidebar} aria-label="Primary navigation">
-      {/* Brand */}
-      <div className={styles.brand}>
+    <>
+      {/* Mobile Top Header */}
+      <div className={styles.mobileHeader}>
         <div className={styles.brandHeader}>
           <div className={styles.brandLogo}>
             <Network size={16} />
@@ -119,74 +128,108 @@ export function Sidebar({
             <span className={styles.brandBadge}>Core</span>
           </div>
         </div>
-        {profile?.headline && (
-          <span className={styles.brandSub}>{profile.headline}</span>
-        )}
+
+        <button
+          type="button"
+          className={styles.mobileToggleBtn}
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+        >
+          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
       </div>
 
-      {/* Sync status */}
-      <div className={styles.syncStatus}>
-        <span className={dotClass} />
-        <span className={styles.syncLabel}>
-          {syncing
-            ? "Syncing…"
-            : lastUpdated
-            ? `Updated ${formatRelativeTime(lastUpdated)}`
-            : "Not connected"}
-        </span>
-      </div>
-
-      {/* Navigation */}
-      <nav className={styles.nav} aria-label="Main navigation">
-        {NAV_SECTIONS.map((section, idx) => (
-          <div key={idx} className={styles.navSection}>
-            {section.label && (
-              <span className={`${styles.navSectionLabel} section-label`}>
-                {section.label}
-              </span>
-            )}
-            {section.items.map(({ id, label, icon: Icon, showBadge }) => (
-              <button
-                key={id}
-                type="button"
-                className={`${styles.navButton} ${
-                  activeView === id ? styles.navActive : ""
-                }`}
-                onClick={() => setActiveView(id)}
-                aria-current={activeView === id ? "page" : undefined}
-              >
-                <Icon size={16} className={styles.navIcon} />
-                <span>{label}</span>
-                {showBadge && pendingReviewCount > 0 && (
-                  <span className={styles.navBadge}>{pendingReviewCount}</span>
-                )}
-              </button>
-            ))}
+      {/* Main Sidebar (Desktop fixed + Mobile expandable drawer) */}
+      <aside
+        className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ""}`}
+        aria-label="Primary navigation"
+      >
+        {/* Brand (Desktop) */}
+        <div className={styles.brand}>
+          <div className={styles.brandHeader}>
+            <div className={styles.brandLogo}>
+              <Network size={16} />
+            </div>
+            <div className={styles.brandTitleGroup}>
+              <span className={styles.brandName}>Career Graph</span>
+              <span className={styles.brandBadge}>Core</span>
+            </div>
           </div>
-        ))}
-      </nav>
+          {profile?.headline && (
+            <span className={styles.brandSub}>{profile.headline}</span>
+          )}
+        </div>
 
-      {/* Footer actions */}
-      <div className={styles.footer}>
-        <button
-          type="button"
-          className={`btn btn-secondary ${styles.footerBtn}`}
-          onClick={handleGithubSync}
-          disabled={syncing}
-        >
-          <GithubIcon size={15} />
-          <span>Sync GitHub</span>
-        </button>
-        <button
-          type="button"
-          className={`btn btn-ghost ${styles.footerBtn}`}
-          onClick={handleRunDemoSync}
-          disabled={syncing}
-        >
-          <Sparkles size={14} />
-          <span>Load demo data</span>
-        </button>
-      </div>
-    </aside>
+        {/* Sync status */}
+        <div className={styles.syncStatus}>
+          <span className={dotClass} />
+          <span className={styles.syncLabel}>
+            {syncing
+              ? "Syncing…"
+              : lastUpdated
+              ? `Updated ${formatRelativeTime(lastUpdated)}`
+              : "Not connected"}
+          </span>
+        </div>
+
+        {/* Navigation */}
+        <nav className={styles.nav} aria-label="Main navigation">
+          {NAV_SECTIONS.map((section, idx) => (
+            <div key={idx} className={styles.navSection}>
+              {section.label && (
+                <span className={`${styles.navSectionLabel} section-label`}>
+                  {section.label}
+                </span>
+              )}
+              {section.items.map(({ id, label, icon: Icon, showBadge }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`${styles.navButton} ${
+                    activeView === id ? styles.navActive : ""
+                  }`}
+                  onClick={() => handleNavClick(id)}
+                  aria-current={activeView === id ? "page" : undefined}
+                >
+                  <Icon size={16} className={styles.navIcon} />
+                  <span>{label}</span>
+                  {showBadge && pendingReviewCount > 0 && (
+                    <span className={styles.navBadge}>{pendingReviewCount}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        {/* Footer actions */}
+        <div className={styles.footer}>
+          <button
+            type="button"
+            className={`btn btn-secondary ${styles.footerBtn}`}
+            onClick={() => {
+              handleGithubSync();
+              setMobileMenuOpen(false);
+            }}
+            disabled={syncing}
+          >
+            <GithubIcon size={15} />
+            <span>Sync GitHub</span>
+          </button>
+          <button
+            type="button"
+            className={`btn btn-ghost ${styles.footerBtn}`}
+            onClick={() => {
+              handleRunDemoSync();
+              setMobileMenuOpen(false);
+            }}
+            disabled={syncing}
+          >
+            <Sparkles size={14} />
+            <span>Load demo data</span>
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

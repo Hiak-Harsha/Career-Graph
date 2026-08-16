@@ -124,6 +124,7 @@ export interface Project {
   demo_url?: string;
   started_at?: string;
   completed_at?: string;
+  created_at?: string;
   updated_at?: string;
   skills?: Skill[];
   domains?: Domain[];

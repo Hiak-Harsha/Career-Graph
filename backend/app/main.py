@@ -1219,10 +1219,10 @@ def generate_blocks_representation_from_strategy(user: User, strategy: ResumeStr
             order=1,
             content_payload={
                 "name": user.name,
-                "headline": f"{strategy.target_role.upper()} · {identity.primary_domains[0]}",
+                "headline": f"{strategy.target_role.upper()} · {identity.primary_domains[0]}" if identity.primary_domains else strategy.target_role.upper(),
                 "email": user.email,
-                "location": user.location or "Bangalore, India",
-                "github": user.github_username or "harsha",
+                "location": user.location or "",
+                "github": user.github_username or "",
                 "tagline": strategy.candidate_positioning
             }
         ),

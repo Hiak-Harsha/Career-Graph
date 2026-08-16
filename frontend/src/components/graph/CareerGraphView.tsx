@@ -143,6 +143,10 @@ export function CareerGraphView({
 
       const projDate = proj.started_at
         ? new Date(proj.started_at)
+        : proj.completed_at
+        ? new Date(proj.completed_at)
+        : proj.updated_at
+        ? new Date(proj.updated_at)
         : proj.created_at
         ? new Date(proj.created_at)
         : new Date("2024-01-01");

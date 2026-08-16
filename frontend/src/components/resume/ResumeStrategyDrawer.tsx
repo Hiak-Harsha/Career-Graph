@@ -45,38 +45,45 @@ export function ResumeStrategyDrawer({
   const [applyingGap, setApplyingGap] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function loadIntelligence() {
-      try {
-        setLoading(true);
-        setError("");
+  const loadIntelligence = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-        const [idRes, stratRes, critRes] = await Promise.all([
-          apiFetch("/resume/identity"),
-          apiFetch("/resume/strategy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_role: targetRole, layout_preference: personality }),
-          }),
-          apiFetch("/resume/critique", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_role: targetRole }),
-          }),
-        ]);
+      const results = await Promise.allSettled([
+        apiFetch("/resume/identity").then((r) => r.json()),
+        apiFetch("/resume/strategy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target_role: targetRole, layout_preference: personality }),
+        }).then((r) => r.json()),
+        apiFetch("/resume/critique", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target_role: targetRole }),
+        }).then((r) => r.json()),
+      ]);
 
-        if (idRes.ok) setIdentity(await idRes.json());
-        if (stratRes.ok) setStrategy(await stratRes.json());
-        if (critRes.ok) setCritique(await critRes.json());
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to load resume intelligence data.");
-      } finally {
-        setLoading(false);
+      const [idResult, stratResult, critResult] = results;
+
+      if (idResult.status === "fulfilled") setIdentity(idResult.value);
+      if (stratResult.status === "fulfilled") setStrategy(stratResult.value);
+      if (critResult.status === "fulfilled") setCritique(critResult.value);
+
+      if (results.every((r) => r.status === "rejected")) {
+        const firstErr = (results[0] as PromiseRejectedResult).reason;
+        setError(firstErr instanceof Error ? firstErr.message : "Failed to load resume intelligence data.");
       }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load resume intelligence data.");
+    } finally {
+      setLoading(false);
     }
-
-    loadIntelligence();
   }, [targetRole, personality]);
+
+  useEffect(() => {
+    loadIntelligence();
+  }, [loadIntelligence]);
 
   const handleImproveRepresentation = async () => {
     if (!critique?.fails_to_communicate_gaps.length) return;
@@ -154,7 +161,12 @@ export function ResumeStrategyDrawer({
               <Loader2 size={24} className="animate-spin" color="#60a5fa" />
             </div>
           ) : error ? (
-            <div style={{ color: "#f87171", fontSize: "0.85rem", padding: "1rem" }}>{error}</div>
+            <div className={styles.sectionCard} style={{ borderColor: "rgba(239, 68, 68, 0.3)", padding: "1.5rem", textAlign: "center" }}>
+              <p style={{ color: "#f87171", fontSize: "0.88rem", marginBottom: "0.75rem" }}>{error}</p>
+              <button type="button" className="btn btn-secondary" onClick={() => loadIntelligence()} style={{ margin: "0 auto" }}>
+                <span>Retry Loading</span>
+              </button>
+            </div>
           ) : (
             <>
               {/* Tab 1: Professional Identity */}

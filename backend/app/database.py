@@ -51,8 +51,17 @@ def _migrate_sqlite_columns():
                 if "notes_json" not in existing_idea_cols:
                     conn.execute(text("ALTER TABLE ideas ADD COLUMN notes_json TEXT"))
                 conn.commit()
+
+            # Check users table columns
+            cursor_users = conn.execute(text("PRAGMA table_info(users)"))
+            existing_user_cols = {row[1] for row in cursor_users.fetchall()}
+            if existing_user_cols:
+                if "is_public" not in existing_user_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN is_public BOOLEAN DEFAULT 1"))
+                conn.commit()
     except Exception as e:
         print(f"Notice: SQLite column migration check: {e}")
+
 
 def init_db():
     # Create all tables in database if they do not exist

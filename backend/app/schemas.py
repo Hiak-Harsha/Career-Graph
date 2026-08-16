@@ -14,6 +14,7 @@ class UserBase(BaseModel):
     education: Optional[str] = None
     career_goal: Optional[str] = None
     github_username: Optional[str] = None
+    is_public: Optional[bool] = True
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
@@ -26,12 +27,15 @@ class UserUpdate(BaseModel):
     career_goal: Optional[str] = None
     github_username: Optional[str] = None
     github_access_token: Optional[str] = None
+    is_public: Optional[bool] = None
 
 class UserResponse(UserBase):
     id: UUID
+    is_public: bool = True
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
 
 # Structured Career History Schemas
 class WorkExperienceCreate(BaseModel):

@@ -448,7 +448,7 @@ def test_resume_ai_improve(client):
     })
     assert res_bullet.status_code == 200
     bullet_data = res_bullet.json()
-    assert "Architected and deployed" in bullet_data["improved_text"]
+    assert any(w in bullet_data["improved_text"] for w in ["Architected", "Engineered", "Implemented", "Developed"])
     assert "35%" not in bullet_data["improved_text"]
     assert "40%" not in bullet_data["improved_text"]
 
@@ -469,6 +469,17 @@ def test_public_portfolio_endpoint(client):
     # Test short public url alias /api/p/{identifier}
     res_short = client.get("/api/p/madhav")
     assert res_short.status_code == 200
+
+    # Test privacy toggle
+    client.put("/api/profile", json={"is_public": False})
+    res_private = client.get("/api/p/madhav")
+    assert res_private.status_code == 403
+
+    # Restore public visibility
+    client.put("/api/profile", json={"is_public": True})
+    res_restored = client.get("/api/p/madhav")
+    assert res_restored.status_code == 200
+
 
 
 

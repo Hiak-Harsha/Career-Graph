@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 import styles from "./ProfileEditModal.module.css";
-import type { WorkExperience, Education, Certification, SocialLink } from "../../types";
+import type { WorkExperience, Education, Certification, SocialLink, UserProfile } from "../../types";
 import { apiFetch } from "../../config";
-import { X, Plus, Trash2, Briefcase, GraduationCap, Award, Link2, Loader2, Check } from "lucide-react";
+import { X, Plus, Trash2, Briefcase, GraduationCap, Award, Link2, Loader2, Check, Shield } from "lucide-react";
 
 interface ProfileEditModalProps {
+  initialProfile?: UserProfile;
   initialWorkExperiences?: WorkExperience[];
   initialEducations?: Education[];
   initialCertifications?: Certification[];
@@ -15,9 +16,10 @@ interface ProfileEditModalProps {
   onRefresh?: () => void;
 }
 
-type TabType = "experience" | "education" | "certifications" | "links";
+type TabType = "experience" | "education" | "certifications" | "links" | "privacy";
 
 export function ProfileEditModal({
+  initialProfile,
   initialWorkExperiences = [],
   initialEducations = [],
   initialCertifications = [],
@@ -31,6 +33,8 @@ export function ProfileEditModal({
   const [certifications, setCertifications] = useState<Certification[]>(initialCertifications);
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(initialSocialLinks);
   const [submitting, setSubmitting] = useState(false);
+  const [isPublic, setIsPublic] = useState(initialProfile?.is_public !== false);
+  const [privacySaved, setPrivacySaved] = useState(false);
 
   // Form states
   // 1. Work Exp Form
@@ -243,6 +247,27 @@ export function ProfileEditModal({
     }
   };
 
+  const handleSavePrivacy = async (newPublicVal: boolean) => {
+    try {
+      setSubmitting(true);
+      setIsPublic(newPublicVal);
+      const res = await apiFetch("/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: newPublicVal }),
+      });
+      if (res.ok) {
+        setPrivacySaved(true);
+        setTimeout(() => setPrivacySaved(false), 2500);
+        onRefresh?.();
+      }
+    } catch {
+      // Handled silently
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div className={styles.modal}>
@@ -288,7 +313,15 @@ export function ProfileEditModal({
             onClick={() => setActiveTab("links")}
           >
             <Link2 size={14} />
-            <span>Social & Portfolio Links ({socialLinks.length})</span>
+            <span>Social & Links ({socialLinks.length})</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.tabBtn} ${activeTab === "privacy" ? styles.tabBtnActive : ""}`}
+            onClick={() => setActiveTab("privacy")}
+          >
+            <Shield size={14} />
+            <span>Privacy & Visibility</span>
           </button>
         </div>
 
@@ -333,7 +366,7 @@ export function ProfileEditModal({
                       className={styles.input}
                       value={expCompany}
                       onChange={(e) => setExpCompany(e.target.value)}
-                      placeholder="e.g. Google, Stripe, Startup"
+                      placeholder="e.g. Stripe, DeepMind, Vercel"
                       required
                     />
                   </div>
@@ -351,34 +384,42 @@ export function ProfileEditModal({
 
                 <div className={styles.formRow}>
                   <div className={styles.formGroup}>
+                    <label className={styles.label}>Location</label>
+                    <input
+                      className={styles.input}
+                      value={expLocation}
+                      onChange={(e) => setExpLocation(e.target.value)}
+                      placeholder="e.g. San Francisco, CA / Remote"
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
                     <label className={styles.label}>Start Date *</label>
                     <input
                       className={styles.input}
                       value={expStartDate}
                       onChange={(e) => setExpStartDate(e.target.value)}
-                      placeholder="e.g. Jan 2023"
+                      placeholder="e.g. Jan 2022"
                       required
                     />
                   </div>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>End Date *</label>
+                    <label className={styles.label}>End Date</label>
                     <input
                       className={styles.input}
                       value={expEndDate}
                       onChange={(e) => setExpEndDate(e.target.value)}
-                      placeholder="e.g. Present or Dec 2024"
-                      required
+                      placeholder="e.g. Present, Dec 2024"
                     />
                   </div>
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>Location</label>
+                  <label className={styles.label}>Description</label>
                   <input
                     className={styles.input}
-                    value={expLocation}
-                    onChange={(e) => setExpLocation(e.target.value)}
-                    placeholder="e.g. San Francisco, CA / Remote"
+                    value={expDescription}
+                    onChange={(e) => setExpDescription(e.target.value)}
+                    placeholder="Brief summary of your responsibilities"
                   />
                 </div>
 
@@ -386,9 +427,10 @@ export function ProfileEditModal({
                   <label className={styles.label}>Bullet Points (one per line)</label>
                   <textarea
                     className={styles.textarea}
+                    rows={3}
                     value={expBullets}
                     onChange={(e) => setExpBullets(e.target.value)}
-                    placeholder="• Architected high-throughput ingestion pipeline&#10;• Reduced p99 latency by 45ms across microservices"
+                    placeholder="• Architected microservices handling 50k RPS&#10;• Reduced latency by 40% using Redis caching"
                   />
                 </div>
 
@@ -405,14 +447,16 @@ export function ProfileEditModal({
             <div>
               <div className={styles.itemList}>
                 {educations.length === 0 ? (
-                  <p className={styles.emptyNote}>No education entries yet. Add your degree or institution below.</p>
+                  <p className={styles.emptyNote}>No education entries yet. Add your degree below.</p>
                 ) : (
                   educations.map((e) => (
                     <div key={e.id} className={styles.itemCard}>
                       <div className={styles.itemMain}>
-                        <span className={styles.itemTitle}>{e.institution}</span>
-                        <span className={styles.itemSubtitle}>{e.degree} {e.field_of_study ? `in ${e.field_of_study}` : ""}</span>
-                        <span className={styles.itemDates}>{e.start_year || ""} – {e.end_year || ""}</span>
+                        <span className={styles.itemTitle}>{e.degree}</span>
+                        <span className={styles.itemSubtitle}>{e.institution} {e.field_of_study ? `· ${e.field_of_study}` : ""}</span>
+                        {(e.start_year || e.end_year) && (
+                          <span className={styles.itemDates}>{e.start_year} – {e.end_year}</span>
+                        )}
                       </div>
                       <div className={styles.itemActions}>
                         <button
@@ -444,12 +488,12 @@ export function ProfileEditModal({
                     />
                   </div>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>Degree *</label>
+                    <label className={styles.label}>Degree / Program *</label>
                     <input
                       className={styles.input}
                       value={eduDegree}
                       onChange={(e) => setEduDegree(e.target.value)}
-                      placeholder="e.g. Bachelor of Science"
+                      placeholder="e.g. B.S. in Computer Science"
                       required
                     />
                   </div>
@@ -462,16 +506,25 @@ export function ProfileEditModal({
                       className={styles.input}
                       value={eduField}
                       onChange={(e) => setEduField(e.target.value)}
-                      placeholder="e.g. Computer Science"
+                      placeholder="e.g. Artificial Intelligence"
                     />
                   </div>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>Graduation Year</label>
+                    <label className={styles.label}>Start Year</label>
+                    <input
+                      className={styles.input}
+                      value={eduStartYear}
+                      onChange={(e) => setEduStartYear(e.target.value)}
+                      placeholder="e.g. 2019"
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>End Year</label>
                     <input
                       className={styles.input}
                       value={eduEndYear}
                       onChange={(e) => setEduEndYear(e.target.value)}
-                      placeholder="e.g. 2024"
+                      placeholder="e.g. 2023"
                     />
                   </div>
                 </div>
@@ -489,13 +542,18 @@ export function ProfileEditModal({
             <div>
               <div className={styles.itemList}>
                 {certifications.length === 0 ? (
-                  <p className={styles.emptyNote}>No certifications yet. Add your verified credentials below.</p>
+                  <p className={styles.emptyNote}>No certifications yet. Add verified credentials below.</p>
                 ) : (
                   certifications.map((c) => (
                     <div key={c.id} className={styles.itemCard}>
                       <div className={styles.itemMain}>
                         <span className={styles.itemTitle}>{c.name}</span>
                         <span className={styles.itemSubtitle}>{c.issuer} {c.issue_date ? `· ${c.issue_date}` : ""}</span>
+                        {c.credential_url && (
+                          <a href={c.credential_url} target="_blank" rel="noopener noreferrer" className={styles.itemLink}>
+                            Verify Credential →
+                          </a>
+                        )}
                       </div>
                       <div className={styles.itemActions}>
                         <button
@@ -522,17 +580,17 @@ export function ProfileEditModal({
                       className={styles.input}
                       value={certName}
                       onChange={(e) => setCertName(e.target.value)}
-                      placeholder="e.g. AWS Solutions Architect Professional"
+                      placeholder="e.g. AWS Solutions Architect Associate"
                       required
                     />
                   </div>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>Issuer *</label>
+                    <label className={styles.label}>Issuing Organization *</label>
                     <input
                       className={styles.input}
                       value={certIssuer}
                       onChange={(e) => setCertIssuer(e.target.value)}
-                      placeholder="e.g. Amazon Web Services, Google Cloud"
+                      placeholder="e.g. Amazon Web Services"
                       required
                     />
                   </div>
@@ -545,7 +603,7 @@ export function ProfileEditModal({
                       className={styles.input}
                       value={certDate}
                       onChange={(e) => setCertDate(e.target.value)}
-                      placeholder="e.g. 2024"
+                      placeholder="e.g. Oct 2024"
                     />
                   </div>
                   <div className={styles.formGroup}>
@@ -554,7 +612,7 @@ export function ProfileEditModal({
                       className={styles.input}
                       value={certUrl}
                       onChange={(e) => setCertUrl(e.target.value)}
-                      placeholder="https://credly.com/..."
+                      placeholder="https://..."
                     />
                   </div>
                 </div>
@@ -567,12 +625,12 @@ export function ProfileEditModal({
             </div>
           )}
 
-          {/* Tab 4: Social Links */}
+          {/* Tab 4: Social & Links */}
           {activeTab === "links" && (
             <div>
               <div className={styles.itemList}>
                 {socialLinks.length === 0 ? (
-                  <p className={styles.emptyNote}>No custom links added yet.</p>
+                  <p className={styles.emptyNote}>No social or portfolio links yet.</p>
                 ) : (
                   socialLinks.map((l) => (
                     <div key={l.id} className={styles.itemCard}>
@@ -630,6 +688,43 @@ export function ProfileEditModal({
                   <span>Add Link</span>
                 </button>
               </form>
+            </div>
+          )}
+
+          {/* Tab 5: Privacy & Visibility */}
+          {activeTab === "privacy" && (
+            <div className={styles.formBox}>
+              <span className={styles.formTitle}>Public Portfolio Visibility</span>
+              <p className={styles.emptyNote} style={{ marginBottom: "1rem" }}>
+                Control whether your verified Living Portfolio and evidence claims are publicly accessible at <code>/p/[username]</code>.
+              </p>
+              
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem", background: "rgba(15, 23, 42, 0.6)", borderRadius: "8px", border: "1px solid var(--border-subtle, #334155)" }}>
+                <div>
+                  <strong style={{ display: "block", color: "var(--text-primary, #f8fafc)", marginBottom: "0.25rem" }}>
+                    Public Portfolio Status
+                  </strong>
+                  <span style={{ fontSize: "0.8rem", color: isPublic ? "#10B981" : "#F59E0B" }}>
+                    {isPublic ? "Publicly Accessible (Recruiters & Visitors)" : "Private (Only Authenticated You Can View)"}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  className={styles.submitBtn}
+                  style={{ background: isPublic ? "#EF4444" : "#10B981", color: "#FFFFFF" }}
+                  onClick={() => handleSavePrivacy(!isPublic)}
+                  disabled={submitting}
+                >
+                  {submitting ? <Loader2 size={14} className="animate-spin" /> : isPublic ? "Set to Private" : "Set to Public"}
+                </button>
+              </div>
+
+              {privacySaved && (
+                <p style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "#10B981", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                  <Check size={14} /> Privacy preferences updated successfully.
+                </p>
+              )}
             </div>
           )}
         </div>

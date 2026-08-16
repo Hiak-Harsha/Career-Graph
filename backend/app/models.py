@@ -96,9 +96,11 @@ class User(Base):
     education = Column(Text)
     career_goal = Column(Text)
     github_username = Column(String(255), unique=True)
-    github_access_token = Column(String(255))
+    github_access_token = Column(Text)
+    is_public = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
 
     # Relationships
     projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")

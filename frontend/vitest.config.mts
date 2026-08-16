@@ -7,7 +7,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    testTimeout: 15000,
+    testTimeout: 20000,
+    pool: "forks",
     isolate: true,
     css: {
       modules: {

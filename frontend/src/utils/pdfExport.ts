@@ -212,7 +212,7 @@ export function exportAtsPdf(resumeData: ResumeData): void {
  * Generates a modern visual styled PDF with selectable text, typography hierarchy,
  * proof badge indicators, work experience, and education.
  */
-export function exportVisualPdf(resumeData: ResumeData): void {
+export function exportVisualPdf(resumeData: ResumeData, personality: string = "modern_professional"): void {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "pt",
@@ -225,6 +225,8 @@ export function exportVisualPdf(resumeData: ResumeData): void {
   const contentWidth = pageWidth - margin * 2;
   let y = 48;
 
+  const fontFamily = personality === "editorial" ? "times" : "helvetica";
+
   const checkPageBreak = (neededHeight: number) => {
     if (y + neededHeight > pageHeight - margin) {
       doc.addPage();
@@ -233,20 +235,21 @@ export function exportVisualPdf(resumeData: ResumeData): void {
   };
 
   // Header Banner Background Accent
-  doc.setFillColor(15, 23, 42); // slate-900
+  const bannerColor = personality === "editorial" ? [15, 23, 42] : personality === "technical" ? [5, 11, 20] : [15, 23, 42];
+  doc.setFillColor(bannerColor[0], bannerColor[1], bannerColor[2]);
   doc.roundedRect(margin, y, contentWidth, 76, 6, 6, "F");
 
   doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
+  doc.setFont(fontFamily, "bold");
   doc.setFontSize(18);
   const name = resumeData.profile?.name || "Professional";
   doc.text(name, margin + 18, y + 28);
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont(fontFamily, "normal");
   doc.setFontSize(10);
   doc.setTextColor(148, 163, 184); // slate-400
   const roleText = resumeData.target_role || "Software Specialist";
-  doc.text(roleText.toUpperCase(), margin + 18, y + 44);
+  doc.text(`${roleText.toUpperCase()} [${personality.replace('_', ' ').toUpperCase()}]`, margin + 18, y + 44);
 
   const contactParts: string[] = [];
   if (resumeData.profile?.email) contactParts.push(resumeData.profile.email);

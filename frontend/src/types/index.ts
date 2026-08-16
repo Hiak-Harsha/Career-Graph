@@ -282,6 +282,116 @@ export interface ResumeData {
   updated_at?: string;
 }
 
+// ─── Resume Intelligence Engine Types ────────────────────────────────────────
+
+export type ResumePersonality =
+  | "editorial"
+  | "technical"
+  | "modern_professional"
+  | "research"
+  | "executive";
+
+export interface DomainSignatureNode {
+  id: string;
+  name: string;
+  category: string;
+  level: string;
+  evidence_count: number;
+}
+
+export interface DomainSignatureEdge {
+  source: string;
+  target: string;
+  relationship: string;
+}
+
+export interface ProfessionalIdentity {
+  user_id: string;
+  candidate_name: string;
+  headline: string;
+  primary_domains: string[];
+  emerging_domains: string[];
+  strong_capabilities: string[];
+  current_trajectory: string;
+  evidence_strength: "High" | "Moderate" | "Developing";
+  research_orientation: "Increasing" | "Stable" | "Experimental";
+  project_style: string;
+  signature_nodes: DomainSignatureNode[];
+  signature_edges: DomainSignatureEdge[];
+  total_verified_claims: number;
+  total_repositories: number;
+}
+
+export interface ResumeStrategy {
+  target_role: string;
+  candidate_positioning: string;
+  primary_domains: string[];
+  supporting_domains: string[];
+  projects_to_highlight: string[];
+  skills_to_emphasize: string[];
+  evidence_priorities: string[];
+  weak_areas: string[];
+  suggested_layout: ResumePersonality;
+  role_alignment_score: number;
+}
+
+export interface ResumeBlockItem {
+  block_type:
+    | "identity"
+    | "signature"
+    | "positioning"
+    | "selected_work"
+    | "technical_depth"
+    | "trajectory"
+    | "experience"
+    | "education"
+    | "certifications";
+  title: string;
+  subtitle?: string;
+  order: number;
+  content_payload: Record<string, any>;
+}
+
+export interface ResumeBlockRepresentation {
+  target_role: string;
+  layout_personality: ResumePersonality;
+  positioning_statement: string;
+  blocks: ResumeBlockItem[];
+  evidence_coverage_rate: number;
+  verification_rate: number;
+  generated_at: string;
+}
+
+export interface ReadinessDimension {
+  dimension: string;
+  rating: "Strong" | "Moderate" | "Developing";
+  score: number;
+  insight: string;
+}
+
+export interface ResumeCritique {
+  target_role: string;
+  readiness_dimensions: ReadinessDimension[];
+  overall_readiness: "Strong" | "Moderate" | "Developing";
+  recruiter_attention_hierarchy: {
+    "0_to_3s": string;
+    "3_to_8s": string;
+    "8_to_18s": string;
+    "18_to_30s": string;
+  };
+  fails_to_communicate_gaps: string[];
+  recommended_improvements: string[];
+}
+
+export interface ResumeValidation {
+  is_valid: boolean;
+  unverified_claims: string[];
+  fabricated_metrics_detected: string[];
+  sanitized_blocks: ResumeBlockItem[];
+  verified_claim_count: number;
+  total_claims_checked: number;
+}
+
 // ─── Recruiter Types ─────────────────────────────────────────────────────────
 
 export interface CriteriaMatch {

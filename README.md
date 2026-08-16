@@ -5,39 +5,49 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black.svg?style=flat&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19.2-61DAFB.svg?style=flat&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?style=flat&logo=typescript)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/Tests-31%2F31%20Passed-success.svg?style=flat)]()
+[![Tests](https://img.shields.io/badge/Tests-52%2F52%20Passed-success.svg?style=flat)]()
 
-**Career Graph** is an evidence-led career intelligence platform that connects your GitHub repositories, code commits, and verified projects into a dynamic, interactive knowledge graph. It transforms verified work into a **Living Portfolio**, an **ATS & Visual Vector Resume Builder**, and an automated **Recruiter Matching Engine**.
+**Career Graph** is an evidence-led career intelligence platform that connects your GitHub repositories, code commits, and verified projects into a dynamic, interactive knowledge graph. It transforms verified work into a **Living Portfolio**, a **Resume Intelligence Engine**, and an automated **Recruiter Matching Engine**.
 
 ---
 
 ## 🌟 Key Features
 
-### 1. 🕸️ Interactive D3 Career Graph
+### 1. 🧠 Resume Intelligence Engine (Representation over Generation)
+- **Professional Identity Model**: Automatically computes primary domains, emerging horizons, evidence strength, research orientation, project style, and trajectory directly from your Career Graph.
+- **Resume Strategy Engine**: Curates role-specific context for target positions (*AI / ML Engineer*, *Backend Systems Engineer*, *Research Engineer*, *Full Stack*) with high-signal positioning theses.
+- **Modular Block Representation**: Clean block-based architecture (`IdentityBlock`, `ProfessionalSignatureBlock`, `PositioningBlock`, `SelectedWorkBlock`, `TechnicalDepthBlock`, `CurrentTrajectoryBlock`, `ExperienceBlock`, `EducationBlock`).
+- **5 Visual Layout Personalities**:
+  - `Modern`: Balanced, recruiter-friendly cards with clean hierarchy.
+  - `Technical`: Monospace architecture accents and engineering-focused badges.
+  - `Editorial`: Elegant serif typography, research framing, and classic dividers.
+  - `Research`: Methodology-focused with empirical proof callouts.
+  - `Executive`: Systems-impact and trajectory-first layout.
+- **Recruiter Critic & Gap Analysis**:
+  - 10-second attention breakdown modeling what recruiters notice first.
+  - Multidimensional Readiness Scores (*Role Relevance*, *Technical Depth*, *Evidence Strength*, *Clarity & Conciseness*).
+  - *"What does my resume fail to communicate?"* analysis with **1-Click "Improve Representation"** execution.
+- **Anti-Fabrication & Fact Validator**: Blocks hallucinations and unevidenced percentage claims ("improved performance by 40%"), replacing them with verified database evidence.
+
+### 2. 🕸️ Interactive D3 Career Graph
 - **Force-Directed Knowledge Graph**: Live graph topology connecting projects, technical domains, and verified skills.
 - **Node Inspection Drawers**: Click any node to drill down into underlying git commits, PR references, and confidence metrics.
 - **Physics Controls & Filters**: Custom gravity, link distance, charge tuning, and domain filtering.
 
-### 2. 📄 Dual-Variant Vector Resume Builder
-- **100% Vector Text ATS PDF**: Directly renders selectable, searchable vector PDFs formatted to standard ATS margins and typography (zero screenshot PNG bloat).
-- **Executive Visual PDF**: Modern styled executive resume with proof badges and clickable evidence links.
-- **Inline Customization & Persistence**: Real-time summary editing, bullet point tweaking, project selection, and full database persistence (`GET`/`POST`/`PUT`/`DELETE` `/api/resumes`).
-- **AI Bullet & Summary Polishing**: One-click AI enhancement to refine technical impact and metric clarity.
+### 3. 📄 Dual-Variant Vector Resume Builder & ATS Preview
+- **100% Vector Text ATS PDF**: Renders selectable, searchable vector PDFs formatted to standard ATS margins and typography (zero screenshot PNG bloat).
+- **Visual Vector PDF**: Personality-styled modern visual PDF with typography hierarchy and proof indicators.
 - **ATS Plain Text Preview**: Instant copy-paste plain text generator for job application portals.
 
-### 3. 🌐 Living Portfolio
+### 4. 🌐 Living Portfolio
 - **Verified Technical Artifacts**: Showcase your work with complexity ratings, architecture tags, and repository links.
 - **Problem-Solving Profile**: Analytical archetype detection based on confirmed skill usage patterns.
 - **Skill Progression Bars**: Real-time exposure, depth, activity, and recency tracking.
-- **Shareable Identity**: Instant clipboard link sharing for recruiters and peers.
+- **Shareable Identity**: Instant clipboard link sharing for recruiters and peers (`/p/[username]`).
 
-### 4. 🎯 Recruiter Intelligence Match
-- **Role-Based Evaluation**: Compares confirmed capabilities against target criteria (Software Engineer, ML Engineer, Backend Architect, Research Engineer).
-- **Evidence-Backed Claims**: Validates each skill claim against concrete commits and releases.
-
-### 5. 🛡️ Human-in-the-Loop Review Queue
-- **AI Skill & Domain Proposals**: Review unconfirmed skills detected from your repositories before they impact your graph scores.
-- **Audit Trails**: Confirm, reject, or adjust weights on detected technologies.
+### 5. 🎯 Recruiter Intelligence Match & Review Queue
+- **Role-Based Evaluation**: Compares confirmed capabilities against target criteria.
+- **Human-in-the-Loop Review Queue**: Confirm, reject, or adjust weights on detected technologies before they impact graph scores.
 
 ---
 
@@ -57,15 +67,20 @@
 │  │   Analyzer & Parser   │──▶│  Graph Inference Engine │──▶│   Relational Database   │  │
 │  │ (Skills/Domains/Claim)│   │(Scores, Trajectory, ML) │   │ (Resumes, History, Ev.) │  │
 │  └───────────────────────┘   └─────────────────────────┘   └────────────┬────────────┘  │
-└───────────────────────────────────────────────┬─────────────────────────┼───────────────┘
-                                                │ REST API                │
-                                                ▼                         ▼
+│                                                                         │               │
+│  ┌───────────────────────────────────────────────────────────────────┐  │               │
+│  │ Resume Intelligence Layer                                         │◀─┘               │
+│  │ (Identity Model, Strategy Curation, Fact Validator, Critic Engine)│                  │
+│  └───────────────────────────────────────────────────────────────────┘                  │
+└───────────────────────────────────────────────┬─────────────────────────────────────────┘
+                                                │ REST API
+                                                ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │ Next.js 16 + React 19 Frontend                                                          │
 │                                                                                         │
 │  ┌─────────────────────┐   ┌─────────────────────────┐   ┌───────────────────────────┐  │
-│  │  D3.js Career Graph │   │   Living Portfolio View │   │ Dual Vector Resume Engine │  │
-│  │  (Force Simulation) │   │  (Artifacts, Progress)  │   │  (ATS & Visual jsPDF)     │  │
+│  │  D3.js Career Graph │   │   Living Portfolio View │   │ Resume Intelligence View  │  │
+│  │  (Force Simulation) │   │  (Artifacts, Progress)  │   │ (5 Personalities, Drawer) │  │
 │  └─────────────────────┘   └─────────────────────────┘   └───────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -97,21 +112,14 @@
    pip install -r backend/requirements.txt
    ```
 
-3. Configure environment variables (optional for local mock testing):
+3. Run the development backend server:
    ```bash
-   cp .env.example .env
+   python -m uvicorn backend.app.main:app --reload --port 8000
    ```
-
-4. Start the FastAPI backend server:
-   ```bash
-   uvicorn backend.app.main:app --reload --port 8000
-   ```
-   API will be available at: `http://localhost:8000`  
-   Interactive Swagger docs: `http://localhost:8000/docs`
 
 ---
 
-### Frontend Setup (Next.js 16 / React 19)
+### Frontend Setup (Next.js)
 
 1. Navigate to the `frontend/` directory:
    ```bash
@@ -127,28 +135,27 @@
    ```bash
    npm run dev
    ```
-   Frontend will be available at: `http://localhost:3000`
+
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 🧪 Testing & Verification
+## 🧪 Running Test Suites
 
-### Backend Automated Test Suite
-Run 13 unit tests covering Auth, Sync, Resume CRUD, AI Polishing, and Recruiter Matching:
+### Backend Tests (Pytest)
 ```bash
-pytest backend/tests/test_api.py -v
+# 15/15 tests passing
+.\backend\.venv\Scripts\python.exe -m pytest backend/tests/test_api.py -v
 ```
-*Result: 13/13 passed, 0 deprecation warnings.*
 
-### Frontend Vitest Suite
-Run 18 component and utility tests covering Graph View, Review Queue, Resume Builder, and Living Portfolio:
+### Frontend Tests (Vitest)
 ```bash
+# 37/37 tests passing
 cd frontend
 npm test
 ```
-*Result: 18/18 passed.*
 
-### TypeScript & Production Build
+### Production Build & Typecheck
 ```bash
 cd frontend
 npx tsc --noEmit
@@ -157,46 +164,13 @@ npm run build
 
 ---
 
-## 📂 Project Structure
-
-```
-career-graph/
-├── backend/
-│   ├── app/
-│   │   ├── analyzer.py       # Technical skill & domain extraction engine
-│   │   ├── auth.py           # GitHub OAuth & secure session management
-│   │   ├── config.py         # App configuration & environment validation
-│   │   ├── database.py       # SQLAlchemy session & DB connection
-│   │   ├── main.py           # FastAPI REST API endpoints
-│   │   ├── models.py         # Relational database models (Resumes, Projects, Claims)
-│   │   └── schemas.py        # Pydantic v2 validation schemas
-│   ├── tests/
-│   │   └── test_api.py       # Backend Pytest test suite
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── app/              # Next.js App Router (Dashboard & OAuth Callbacks)
-│   │   ├── components/
-│   │   │   ├── career/       # Problem-Solving profile & Trajectory tables
-│   │   │   ├── domains/      # Domain cards & inspection drawers
-│   │   │   ├── evidence/     # Evidence proof drawer & citation viewers
-│   │   │   ├── graph/        # D3 Force-directed Career Graph
-│   │   │   ├── portfolio/    # Living Portfolio presentation view
-│   │   │   ├── projects/     # Project artifact cards
-│   │   │   ├── recruiter/    # Candidate intelligence & criteria match
-│   │   │   ├── resume/       # Dual-variant ATS & Visual Resume builder
-│   │   │   ├── review/       # Unconfirmed skill review queue
-│   │   │   └── ui/           # Sidebar navigation, modals, icons
-│   │   ├── hooks/            # useCareerGraph, useResume, useRecruiter
-│   │   ├── types/            # TypeScript interfaces & domain types
-│   │   └── utils/            # pdfExport.ts (Vector ATS & Visual PDF)
-│   └── package.json
-├── career-graph.zip          # Production distribution archive
-└── README.md
-```
+## 🔒 Security & Anti-Fabrication Safeguards
+- **OAuth CSRF Protection**: Strict state nonce verification with timestamped expiration.
+- **Repository URL Validation**: Enforces exact GitHub URL format and hostname checks.
+- **Rate-Limiting & Idempotency**: Sync rate limits per user ID and global SHA-256 caching for LLM analyses.
+- **Zero Fabricated Metrics**: Regex and database cross-validation prevents unauthorized synthetic percentage claims.
 
 ---
 
-## 📜 License
-
-MIT License. Designed and engineered for production-grade developer career intelligence.
+## 📄 License
+MIT License. Created for verifiable career acceleration.

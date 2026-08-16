@@ -1,0 +1,104 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1rem 1.25rem;
+  margin: 0.5rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.styleBadge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: #60a5fa;
+}
+
+/* Graph Nodes & Connectors */
+.graphCanvas {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 1rem 0.5rem;
+  padding: 0.75rem 0.5rem;
+  position: relative;
+}
+
+.nodeCard {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  padding: 0.4rem 0.85rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: all var(--t-fast, 0.15s ease);
+}
+
+.nodeCard:hover {
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+
+.nodeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.7);
+}
+
+.nodeName {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.nodeLevel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.connector {
+  color: #64748b;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+}

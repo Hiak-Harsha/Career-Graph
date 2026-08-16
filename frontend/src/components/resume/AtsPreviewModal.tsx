@@ -8,9 +8,10 @@ import { X, Copy, Check, Download, FileText } from "lucide-react";
 interface AtsPreviewModalProps {
   resumeData: ResumeData;
   onClose: () => void;
+  onExportAts?: () => void;
 }
 
-export function AtsPreviewModal({ resumeData, onClose }: AtsPreviewModalProps) {
+export function AtsPreviewModal({ resumeData, onClose, onExportAts }: AtsPreviewModalProps) {
   const [copied, setCopied] = useState(false);
 
   // Generate clean ATS plain text representation

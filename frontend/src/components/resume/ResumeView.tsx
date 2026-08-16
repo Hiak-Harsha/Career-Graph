@@ -2,224 +2,154 @@
 
 import React, { useState, useEffect } from "react";
 import styles from "./ResumeView.module.css";
-import type { ResumeData, Claim, ResumeProject } from "../../types";
+import type {
+  ResumeData,
+  Claim,
+  ResumePersonality,
+  ResumeBlockRepresentation,
+  ResumeBlockItem,
+} from "../../types";
+import { apiFetch } from "../../config";
+import { ProfessionalSignature } from "./ProfessionalSignature";
+import { ResumeStrategyDrawer } from "./ResumeStrategyDrawer";
 import { AtsPreviewModal } from "./AtsPreviewModal";
 import { EvidenceDrawer } from "../evidence/EvidenceDrawer";
-import { exportAtsPdf, exportVisualPdf } from "../../utils/pdfExport";
+import { exportVisualPdf, exportAtsPdf } from "../../utils/pdfExport";
+import { GithubIcon } from "../ui/icons/GithubIcon";
 import {
-  Download,
   FileText,
+  Download,
+  Eye,
+  Sliders,
   ShieldCheck,
-  Check,
+  MapPin,
+  Mail,
+  ArrowRight,
   Loader2,
-  Sparkles,
-  Edit3,
-  Save,
-  Plus,
-  Trash2,
-  CheckSquare,
-  Square,
-  X,
 } from "lucide-react";
 
-const ROLES = [
-  "Software Engineer",
-  "Machine Learning Engineer",
-  "Backend Engineer",
-  "Research Engineer",
-];
-
 interface ResumeViewProps {
-  resumeData: ResumeData | null;
-  loading: boolean;
-  selectedRole: string;
-  onRoleChange: (role: string) => void;
-  onSave?: (data: Partial<ResumeData>) => Promise<unknown>;
-  onAiImprove?: (
-    fieldType: "summary" | "bullet",
-    text: string,
-    targetRole: string
-  ) => Promise<{ improved_text: string; suggestions?: string[] } | null>;
+  initialRole?: string;
+  selectedRole?: string;
+  onRoleChange?: (role: string) => void;
+  onSave?: (data: Partial<ResumeData>) => Promise<any>;
+  resumeData?: ResumeData | null;
+  loading?: boolean;
   saving?: boolean;
+  onAiImprove?: (fieldType: "summary" | "bullet", text: string, targetRole: string) => Promise<any>;
 }
 
+const ROLES = [
+  "AI / ML Engineer",
+  "Backend Systems Engineer",
+  "Research Engineer",
+  "Full Stack Engineer",
+];
+
+const PERSONALITIES: { id: ResumePersonality; label: string }[] = [
+  { id: "modern_professional", label: "Modern" },
+  { id: "technical", label: "Technical" },
+  { id: "editorial", label: "Editorial" },
+  { id: "research", label: "Research" },
+  { id: "executive", label: "Executive" },
+];
+
 export function ResumeView({
-  resumeData,
-  loading,
-  selectedRole,
+  initialRole = "AI / ML Engineer",
   onRoleChange,
-  onSave,
-  onAiImprove,
-  saving = false,
+  resumeData,
 }: ResumeViewProps) {
-  const [activeVariant, setActiveVariant] = useState<"visual" | "ats">("visual");
-  const [viewMode, setViewMode] = useState<"standard" | "evidence">("standard");
-  const [isEditing, setIsEditing] = useState(false);
+  const [selectedRole, setSelectedRole] = useState(initialRole);
+  const [personality, setPersonality] = useState<ResumePersonality>("modern_professional");
+  const [blocksRep, setBlocksRep] = useState<ResumeBlockRepresentation | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [strategyDrawerOpen, setStrategyDrawerOpen] = useState(false);
   const [atsModalOpen, setAtsModalOpen] = useState(false);
-  const [drawerClaim, setDrawerClaim] = useState<Claim | null>(null);
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [selectedProofClaim, setSelectedProofClaim] = useState<Claim | null>(null);
 
-  // Local editable state
-  const [summary, setSummary] = useState(resumeData?.summary || "");
-  const [projects, setProjects] = useState<ResumeProject[]>(resumeData?.projects || []);
-  const [skills, setSkills] = useState<string[]>(resumeData?.skills || []);
-  const [experience, setExperience] = useState(resumeData?.experience || []);
-  const [education, setEducation] = useState(resumeData?.education || []);
-  const [certifications, setCertifications] = useState(resumeData?.certifications || []);
-  const [newSkillInput, setNewSkillInput] = useState("");
-  const [aiPolishing, setAiPolishing] = useState(false);
-
-  // Sync state when incoming resumeData changes
+  // Fetch block-based structured representation
   useEffect(() => {
-    if (!resumeData) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSummary(resumeData.summary || "");
-    setProjects(resumeData.projects || []);
-    setSkills(resumeData.skills || []);
-    setExperience(resumeData.experience || []);
-    setEducation(resumeData.education || []);
-    setCertifications(resumeData.certifications || []);
-  }, [resumeData]);
+    async function fetchRepresentation() {
+      try {
+        setLoading(true);
+        const res = await apiFetch("/resume/representation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target_role: selectedRole,
+            layout_preference: personality,
+          }),
+        });
 
-  const handleCitationClick = (label: string, url: string, contextTitle: string) => {
-    const syntheticClaim: Claim = {
-      id: `citation-${label}`,
-      claim: `${contextTitle}: ${label}`,
-      confidence: 0.95,
-      evidence: [
-        {
-          id: `ev-${label}`,
-          type: "GITHUB_COMMIT",
-          source: url || "GitHub Repository",
-          source_url: url || undefined,
-          captured_at: new Date().toISOString(),
-          confidence: 0.95,
-        },
-      ],
-    };
-    setDrawerClaim(syntheticClaim);
-  };
-
-  const handleSave = async () => {
-    if (!onSave || !resumeData) return;
-    try {
-      await onSave({
-        ...resumeData,
-        summary,
-        projects,
-        skills,
-        experience,
-        education,
-        certifications,
-        target_role: selectedRole,
-        variant: activeVariant,
-      });
-      setSavedSuccess(true);
-      setIsEditing(false);
-      setTimeout(() => setSavedSuccess(false), 3000);
-    } catch {
-      // handled
-    }
-  };
-
-  const handleAiPolishSummary = async () => {
-    if (!onAiImprove) return;
-    setAiPolishing(true);
-    try {
-      const data = await onAiImprove("summary", summary, selectedRole);
-      if (data && data.improved_text) {
-        setSummary(data.improved_text);
+        if (res.ok) {
+          const data: ResumeBlockRepresentation = await res.json();
+          setBlocksRep(data);
+        }
+      } catch {
+        // Handled silently
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      // ignore
-    } finally {
-      setAiPolishing(false);
+    }
+
+    fetchRepresentation();
+  }, [selectedRole, personality]);
+
+  const handleRoleSelect = (role: string) => {
+    setSelectedRole(role);
+    onRoleChange?.(role);
+  };
+
+  const handleInspectClaim = (claimId: string, claimText: string) => {
+    setSelectedProofClaim({
+      id: claimId,
+      claim: claimText,
+      confidence: 1.0,
+      status: "user_confirmed",
+      evidence: [],
+    });
+  };
+
+  const handleExportPdf = () => {
+    if (blocksRep && resumeData) {
+      exportVisualPdf(resumeData, personality);
+    } else if (resumeData) {
+      exportVisualPdf(resumeData, personality);
     }
   };
 
-  const handleAiPolishBullet = async (pIndex: number, bIndex: number, bulletText: string) => {
-    if (!onAiImprove) return;
-    try {
-      const data = await onAiImprove("bullet", bulletText, selectedRole);
-      if (data && data.improved_text) {
-        handleUpdateBullet(pIndex, bIndex, data.improved_text);
-      }
-    } catch {
-      // ignore
+  const handleExportAts = () => {
+    if (resumeData) {
+      exportAtsPdf(resumeData);
     }
   };
 
-  const toggleProjectInclusion = (index: number) => {
-    setProjects((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], included: next[index].included === false ? true : false };
-      return next;
-    });
+  // Helper to extract blocks by type
+  const getBlock = (type: string): ResumeBlockItem | undefined => {
+    return blocksRep?.blocks.find((b) => b.block_type === type);
   };
 
-  const handleUpdateBullet = (pIndex: number, bIndex: number, text: string) => {
-    setProjects((prev) => {
-      const next = [...prev];
-      const bullets = [...(next[pIndex].custom_bullets || next[pIndex].narrative.split(" • "))];
-      bullets[bIndex] = text;
-      next[pIndex] = { ...next[pIndex], custom_bullets: bullets, narrative: bullets.join(" • ") };
-      return next;
-    });
-  };
+  const identityBlock = getBlock("identity")?.content_payload;
+  const signatureBlock = getBlock("signature")?.content_payload;
+  const positioningBlock = getBlock("positioning")?.content_payload;
+  const selectedWorkBlock = getBlock("selected_work")?.content_payload;
+  const technicalDepthBlock = getBlock("technical_depth")?.content_payload;
+  const trajectoryBlock = getBlock("trajectory")?.content_payload;
+  const experienceBlock = getBlock("experience")?.content_payload;
+  const educationBlock = getBlock("education")?.content_payload;
+  const certsBlock = getBlock("certifications")?.content_payload;
 
-  const handleAddBullet = (pIndex: number) => {
-    setProjects((prev) => {
-      const next = [...prev];
-      const bullets = [...(next[pIndex].custom_bullets || next[pIndex].narrative.split(" • "))];
-      bullets.push("Engineered new feature with verified code implementation");
-      next[pIndex] = { ...next[pIndex], custom_bullets: bullets, narrative: bullets.join(" • ") };
-      return next;
-    });
-  };
-
-  const handleDeleteBullet = (pIndex: number, bIndex: number) => {
-    setProjects((prev) => {
-      const next = [...prev];
-      const bullets = [...(next[pIndex].custom_bullets || next[pIndex].narrative.split(" • "))];
-      bullets.splice(bIndex, 1);
-      next[pIndex] = { ...next[pIndex], custom_bullets: bullets, narrative: bullets.join(" • ") };
-      return next;
-    });
-  };
-
-  const handleAddSkill = () => {
-    const trimmed = newSkillInput.trim();
-    if (!trimmed || skills.includes(trimmed)) return;
-    setSkills((prev) => [...prev, trimmed]);
-    setNewSkillInput("");
-  };
-
-  const handleRemoveSkill = (skillToRemove: string) => {
-    setSkills((prev) => prev.filter((s) => s !== skillToRemove));
-  };
-
-  if (loading && !resumeData) {
-    return (
-      <div className={styles.loadingBox}>
-        <Loader2 className="animate-spin" size={32} />
-        <p>Analyzing Career Graph and generating tailored resume...</p>
-      </div>
-    );
-  }
-
-  if (!resumeData) return null;
-
-  const currentPayload: ResumeData = {
-    ...resumeData,
-    summary,
-    projects,
-    skills,
-    experience,
-    education,
-    certifications,
-    target_role: selectedRole,
-    variant: activeVariant,
-  };
+  // Personality paper CSS class
+  const paperClass =
+    personality === "editorial"
+      ? `${styles.paper} ${styles.paperEditorial}`
+      : personality === "technical"
+      ? `${styles.paper} ${styles.paperTechnical}`
+      : personality === "research"
+      ? `${styles.paper} ${styles.paperResearch}`
+      : personality === "executive"
+      ? `${styles.paper} ${styles.paperExecutive}`
+      : styles.paper;
 
   return (
     <div className={styles.container}>
@@ -227,14 +157,12 @@ export function ResumeView({
       <div className={styles.topBar}>
         <div className={styles.controlsGroup}>
           <div className={styles.roleSelectGroup}>
-            <label htmlFor="role-select" className={styles.roleLabel}>
-              Role
-            </label>
+            <span className={styles.roleLabel}>Target Role:</span>
             <select
-              id="role-select"
               className={styles.roleSelect}
               value={selectedRole}
-              onChange={(e) => onRoleChange(e.target.value)}
+              onChange={(e) => handleRoleSelect(e.target.value)}
+              aria-label="Select target role"
             >
               {ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -244,416 +172,276 @@ export function ResumeView({
             </select>
           </div>
 
-          {/* Variant Switcher */}
-          <div className={styles.modeToggle} role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeVariant === "visual"}
-              className={`${styles.modeBtn} ${activeVariant === "visual" ? styles.modeBtnActive : ""}`}
-              onClick={() => setActiveVariant("visual")}
-            >
-              Visual View
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeVariant === "ats"}
-              className={`${styles.modeBtn} ${activeVariant === "ats" ? styles.modeBtnActive : ""}`}
-              onClick={() => setActiveVariant("ats")}
-            >
-              ATS Pure Text
-            </button>
+          <div className={styles.personalityGroup}>
+            {PERSONALITIES.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`${styles.personalityBtn} ${
+                  personality === p.id ? styles.personalityBtnActive : ""
+                }`}
+                onClick={() => setPersonality(p.id)}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
-
-          {/* Evidence Toggle in Visual Mode */}
-          {activeVariant === "visual" && (
-            <div className={styles.modeToggle} role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewMode === "standard"}
-                className={`${styles.modeBtn} ${viewMode === "standard" ? styles.modeBtnActive : ""}`}
-                onClick={() => setViewMode("standard")}
-              >
-                Standard
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewMode === "evidence"}
-                className={`${styles.modeBtn} ${viewMode === "evidence" ? styles.modeBtnActive : ""}`}
-                onClick={() => setViewMode("evidence")}
-              >
-                <ShieldCheck size={13} />
-                Evidence View
-              </button>
-            </div>
-          )}
         </div>
 
         <div className={styles.actionsGroup}>
-          {onSave && (
-            <>
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${isEditing ? styles.actionBtnPrimary : ""}`}
-                onClick={() => setIsEditing(!isEditing)}
-              >
-                <Edit3 size={14} />
-                {isEditing ? "Done Editing" : "Edit Resume"}
-              </button>
-
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${savedSuccess ? styles.actionBtnSuccess : styles.actionBtnPrimary}`}
-                onClick={handleSave}
-                disabled={saving}
-              >
-                {saving ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : savedSuccess ? (
-                  <Check size={14} />
-                ) : (
-                  <Save size={14} />
-                )}
-                {savedSuccess ? "Saved!" : "Save"}
-              </button>
-            </>
-          )}
-
           <button
             type="button"
-            className={styles.actionBtn}
-            onClick={() => setAtsModalOpen(true)}
-            title="Preview plain text for copy-pasting into ATS forms"
+            className="btn btn-secondary"
+            onClick={() => setStrategyDrawerOpen(true)}
           >
-            <FileText size={14} />
-            ATS Text
+            <Sliders size={14} />
+            <span>Strategy & Critic</span>
           </button>
-
           <button
             type="button"
-            className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
-            onClick={() => {
-              if (activeVariant === "ats") {
-                exportAtsPdf(currentPayload);
-              } else {
-                exportVisualPdf(currentPayload);
-              }
-            }}
+            className="btn btn-secondary"
+            onClick={() => setAtsModalOpen(true)}
           >
+            <Eye size={14} />
+            <span>ATS View</span>
+          </button>
+          <button type="button" className="btn btn-accent" onClick={handleExportPdf}>
             <Download size={14} />
-            {activeVariant === "ats" ? "Export ATS PDF" : "Export PDF"}
+            <span>Export PDF</span>
           </button>
         </div>
       </div>
 
-      {isEditing && (
-        <div className={styles.editModeBar}>
-          <span>
-            <strong>Edit Mode Active:</strong> Modify your summary, skills, custom bullet points, and included projects.
-          </span>
-          {onAiImprove && (
-            <button
-              type="button"
-              className={styles.btnSmall}
-              onClick={handleAiPolishSummary}
-              disabled={aiPolishing}
-            >
-              <Sparkles size={12} />
-              {aiPolishing ? "Enhancing..." : "AI Rephrase Summary"}
-            </button>
+      {/* Main Resume Sheet */}
+      {loading && !blocksRep ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: "4rem 0" }}>
+          <Loader2 size={28} className="animate-spin" color="#60a5fa" />
+        </div>
+      ) : (
+        <div className={paperClass} id="resume-document">
+          {/* 1. Identity Block */}
+          <div className={styles.headerBlock}>
+            <div className={styles.nameRow}>
+              <h1 className={styles.candidateName}>
+                {identityBlock?.name || resumeData?.profile?.name || "Lalam Harsha Sri Vardhan"}
+              </h1>
+              <span className={styles.verifiedBadge}>
+                <ShieldCheck size={14} />
+                <span>Verified Career Graph</span>
+              </span>
+            </div>
+            <p className={styles.headlineText}>
+              {identityBlock?.headline || `${selectedRole.toUpperCase()} · AI SYSTEMS & ALGORITHMS`}
+            </p>
+            <div className={styles.contactRow}>
+              <span className={styles.contactItem}>
+                <Mail size={13} />
+                <span>{identityBlock?.email || resumeData?.profile?.email || "harsha@example.com"}</span>
+              </span>
+              <span className={styles.contactItem}>
+                <MapPin size={13} />
+                <span>{identityBlock?.location || resumeData?.profile?.location || "Bangalore, India"}</span>
+              </span>
+              <span className={styles.contactItem}>
+                <GithubIcon size={13} />
+                <span>github.com/{identityBlock?.github || resumeData?.profile?.github_username || "harsha"}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* 2. Professional Graph Signature */}
+          {signatureBlock?.nodes && (
+            <ProfessionalSignature
+              nodes={signatureBlock.nodes}
+              edges={signatureBlock.edges}
+              projectStyle={signatureBlock.project_style}
+            />
+          )}
+
+          {/* 3. Core Positioning Block */}
+          {positioningBlock && (
+            <section aria-labelledby="heading-positioning">
+              <h2 id="heading-positioning" className={styles.sectionTitle}>
+                <span>Core Profile & Positioning</span>
+                <span className={styles.sectionSubtitle}>
+                  Evidence Strength: {positioningBlock.evidence_strength || "High"}
+                </span>
+              </h2>
+              <p className={styles.positioningText}>
+                {positioningBlock.statement ||
+                  resumeData?.summary ||
+                  "AI/ML engineer focused on intelligent systems with strong algorithmic foundations."}
+              </p>
+            </section>
+          )}
+
+          {/* 4. Selected Work & Systems */}
+          {selectedWorkBlock?.projects && (
+            <section aria-labelledby="heading-selected-work">
+              <h2 id="heading-selected-work" className={styles.sectionTitle}>
+                <span>Selected Work & Systems</span>
+                <span className={styles.sectionSubtitle}>Verifiable Engineering Artifacts</span>
+              </h2>
+              <div className={styles.projectList}>
+                {selectedWorkBlock.projects.map((proj: any) => (
+                  <div key={proj.id || proj.title} className={styles.projectCard}>
+                    <div className={styles.projectHeader}>
+                      <div className={styles.projectTitleGroup}>
+                        <h3 className={styles.projectTitle}>{proj.title}</h3>
+                        <div className={styles.projectTechs}>
+                          {proj.technologies?.map((t: string) => (
+                            <span key={t} className={styles.techChip}>
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className={styles.projectDesc}>{proj.description}</p>
+
+                    {/* Verified Claims */}
+                    {proj.evidence_claims?.length > 0 && (
+                      <div className={styles.claimsList}>
+                        {proj.evidence_claims.map((c: any) => (
+                          <div key={c.id || c.claim} className={styles.claimRow}>
+                            <span className={styles.claimText}>&ldquo;{c.claim}&rdquo;</span>
+                            <button
+                              type="button"
+                              className={styles.inspectBtn}
+                              onClick={() => handleInspectClaim(c.id, c.claim)}
+                            >
+                              <span>Inspect proof</span>
+                              <ArrowRight size={11} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 5. Technical Depth Block */}
+          {technicalDepthBlock?.clusters && (
+            <section aria-labelledby="heading-technical-depth">
+              <h2 id="heading-technical-depth" className={styles.sectionTitle}>
+                <span>Technical Depth</span>
+                <span className={styles.sectionSubtitle}>Evidence-Backed Capability Clusters</span>
+              </h2>
+              <div className={styles.depthGrid}>
+                {technicalDepthBlock.clusters.map((cluster: any, idx: number) => (
+                  <div key={idx} className={styles.depthCard}>
+                    <span className={styles.depthDomain}>{cluster.domain}</span>
+                    <span className={styles.depthCaps}>{cluster.capabilities}</span>
+                    <span className={styles.depthNote}>{cluster.evidence_note}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 6. Current Trajectory Block */}
+          {trajectoryBlock && (
+            <section aria-labelledby="heading-trajectory">
+              <h2 id="heading-trajectory" className={styles.sectionTitle}>
+                <span>Current Trajectory</span>
+                <span className={styles.sectionSubtitle}>Next Horizons</span>
+              </h2>
+              <div className={styles.trajectoryCard}>
+                <p className={styles.trajectoryText}>{trajectoryBlock.trajectory_text}</p>
+                {trajectoryBlock.next_horizons && (
+                  <div className={styles.horizonsRow}>
+                    {trajectoryBlock.next_horizons.map((h: string) => (
+                      <span key={h} className={styles.horizonChip}>
+                        {h}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* 7. Work Experience Block */}
+          {Boolean(experienceBlock?.experiences && experienceBlock.experiences.length > 0) && (
+            <section aria-labelledby="heading-experience">
+              <h2 id="heading-experience" className={styles.sectionTitle}>
+                <span>Professional Experience</span>
+              </h2>
+              <div className={styles.historyList}>
+                {experienceBlock?.experiences.map((exp: any, i: number) => (
+                  <div key={i} className={styles.historyItem}>
+                    <div className={styles.historyHeader}>
+                      <span className={styles.historyTitle}>{exp.role}</span>
+                      <span className={styles.historyDates}>
+                        {exp.start_date} – {exp.end_date}
+                      </span>
+                    </div>
+                    <span className={styles.historySubtitle}>{exp.company}</span>
+                    {exp.bullets?.map((b: string, bIdx: number) => (
+                      <p key={bIdx} className={styles.historyBullet}>
+                        &bull; {b}
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 8. Education Block */}
+          {Boolean(educationBlock?.educations && educationBlock.educations.length > 0) && (
+            <section aria-labelledby="heading-education">
+              <h2 id="heading-education" className={styles.sectionTitle}>
+                <span>Education</span>
+              </h2>
+              <div className={styles.historyList}>
+                {educationBlock?.educations.map((edu: any, i: number) => (
+                  <div key={i} className={styles.historyItem}>
+                    <div className={styles.historyHeader}>
+                      <span className={styles.historyTitle}>{edu.institution}</span>
+                      <span className={styles.historyDates}>
+                        {edu.start_year} – {edu.end_year}
+                      </span>
+                    </div>
+                    <span className={styles.historySubtitle}>
+                      {edu.degree} {edu.field_of_study ? `in ${edu.field_of_study}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
         </div>
       )}
 
-      {/* Rendered Resume Document */}
-      <div
-        id="resume-document"
-        className={`${styles.resumePaper} ${activeVariant === "ats" ? styles.atsPaper : ""}`}
-      >
-        {/* Header */}
-        <div className={styles.resumeHeader}>
-          <h1 className={styles.headerName}>{resumeData.profile?.name || "Candidate"}</h1>
-          <div className={styles.headerRole}>{selectedRole}</div>
-          <div className={styles.headerContact}>
-            {resumeData.profile?.email && <span>{resumeData.profile.email}</span>}
-            {resumeData.profile?.location && <span>• {resumeData.profile.location}</span>}
-            {resumeData.profile?.github_username && (
-              <span>• github.com/{resumeData.profile.github_username}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Professional Summary */}
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Professional Summary</h2>
-          {isEditing ? (
-            <textarea
-              className={styles.editableTextarea}
-              rows={3}
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-            />
-          ) : (
-            <p className={styles.summaryText}>{summary}</p>
-          )}
-        </div>
-
-        {/* Technical Skills */}
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Technical Skills</h2>
-          {isEditing ? (
-            <div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-                {skills.map((s, idx) => (
-                  <span
-                    key={idx}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 4,
-                      padding: "2px 8px",
-                      borderRadius: 4,
-                      background: "#e0f2fe",
-                      color: "#0369a1",
-                      fontSize: 12,
-                    }}
-                  >
-                    {s}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSkill(s)}
-                      style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div style={{ display: "flex", gap: 6, maxWidth: 320 }}>
-                <input
-                  type="text"
-                  placeholder="Add skill (e.g. Docker, Rust)..."
-                  className={styles.bulletInput}
-                  value={newSkillInput}
-                  onChange={(e) => setNewSkillInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddSkill();
-                    }
-                  }}
-                />
-                <button type="button" className={styles.btnSmall} onClick={handleAddSkill}>
-                  Add
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className={styles.skillsRow}>
-              <span className={styles.skillsLabel}>Core Competencies: </span>
-              {skills.map((s, idx) => (
-                <React.Fragment key={idx}>
-                  <span>{s}</span>
-                  {idx < skills.length - 1 && ", "}
-                </React.Fragment>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Work Experience */}
-        {experience.length > 0 && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Professional Experience</h2>
-            {experience.map((exp, expIdx) => (
-              <div key={expIdx} className={styles.projectCard}>
-                <div className={styles.projectHeader}>
-                  <h3 className={styles.projectTitle}>
-                    {exp.role} — <span style={{ color: "#2563eb" }}>{exp.company}</span>
-                  </h3>
-                  <span className={styles.projectTech}>
-                    {exp.start_date} – {exp.end_date}
-                  </span>
-                </div>
-                {exp.description && <p className={styles.summaryText}>{exp.description}</p>}
-                {exp.bullets && exp.bullets.length > 0 && (
-                  <ul className={styles.bulletList}>
-                    {exp.bullets.map((b, bIdx) => (
-                      <li key={bIdx} className={styles.bulletItem}>
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Projects */}
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            {activeVariant === "ats" ? "Technical Projects & Experience" : "Verified Projects & Experience"}
-          </h2>
-
-          {projects.map((p, pIdx) => {
-            const isIncluded = p.included !== false;
-            if (!isEditing && !isIncluded) return null;
-
-            const bullets = p.custom_bullets?.length
-              ? p.custom_bullets
-              : (p.narrative || "").split(" • ").filter(Boolean);
-
-            return (
-              <div
-                key={p.id || pIdx}
-                className={styles.projectCard}
-                style={{ opacity: isIncluded ? 1 : 0.4 }}
-              >
-                <div className={styles.projectHeader}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {isEditing && (
-                      <button
-                        type="button"
-                        style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}
-                        onClick={() => toggleProjectInclusion(pIdx)}
-                      >
-                        {isIncluded ? <CheckSquare size={16} color="#2563eb" /> : <Square size={16} color="#94a3b8" />}
-                      </button>
-                    )}
-                    <h3 className={styles.projectTitle}>{p.title}</h3>
-                    {viewMode === "evidence" && activeVariant === "visual" && (
-                      <span
-                        className={`${styles.evidenceBadge} ${styles.evidenceBadgeClickable}`}
-                        onClick={() => {
-                          if (p.evidence_links?.[0]) {
-                            handleCitationClick(p.evidence_links[0].label, p.evidence_links[0].url, p.title);
-                          }
-                        }}
-                      >
-                        <ShieldCheck size={10} />
-                        Proof #{pIdx + 1}
-                      </span>
-                    )}
-                  </div>
-
-                  {p.skills && p.skills.length > 0 && (
-                    <span className={styles.projectTech}>[{p.skills.slice(0, 4).join(", ")}]</span>
-                  )}
-                </div>
-
-                {isEditing ? (
-                  <div style={{ marginTop: 8 }}>
-                    {bullets.map((b, bIdx) => (
-                      <div key={bIdx} className={styles.bulletEditRow}>
-                        <input
-                          type="text"
-                          className={styles.bulletInput}
-                          value={b}
-                          onChange={(e) => handleUpdateBullet(pIdx, bIdx, e.target.value)}
-                        />
-                        {onAiImprove && (
-                          <button
-                            type="button"
-                            className={styles.btnSmall}
-                            onClick={() => handleAiPolishBullet(pIdx, bIdx, b)}
-                            title="AI Rephrase Bullet"
-                          >
-                            <Sparkles size={11} />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className={`${styles.btnSmall} ${styles.btnSmallDanger}`}
-                          onClick={() => handleDeleteBullet(pIdx, bIdx)}
-                          title="Delete bullet"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className={styles.btnSmall}
-                      onClick={() => handleAddBullet(pIdx)}
-                      style={{ marginTop: 4 }}
-                    >
-                      <Plus size={12} /> Add Bullet Point
-                    </button>
-                  </div>
-                ) : (
-                  <ul className={styles.bulletList}>
-                    {bullets.map((b, bIdx) => (
-                      <li key={bIdx} className={styles.bulletItem}>
-                        {b}
-                        {viewMode === "evidence" && activeVariant === "visual" && (
-                          <span
-                            className={styles.citationChip}
-                            onClick={() => {
-                              const link = p.evidence_links?.[bIdx % (p.evidence_links.length || 1)];
-                              handleCitationClick(link?.label || `Proof-${bIdx + 1}`, link?.url || "#", p.title);
-                            }}
-                          >
-                            [{bIdx + 1}]
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Education & Credentials */}
-        {(education.length > 0 || certifications.length > 0) && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Education & Credentials</h2>
-            {education.map((edu, idx) => (
-              <div key={idx} style={{ marginBottom: 8, fontSize: 13, color: "#334155" }}>
-                <strong>{edu.degree}</strong> — {edu.institution} ({edu.start_year || ""} - {edu.end_year || ""})
-              </div>
-            ))}
-            {certifications.map((cert, idx) => (
-              <div key={idx} style={{ fontSize: 13, color: "#334155" }}>
-                <strong>{cert.name}</strong> — {cert.issuer} {cert.issue_date && `(${cert.issue_date})`}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Claims / Verified Achievements */}
-        {resumeData.claims && resumeData.claims.length > 0 && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Key Technical Achievements</h2>
-            <ul className={styles.bulletList}>
-              {resumeData.claims.map((claim, idx) => (
-                <li key={idx} className={styles.bulletItem}>
-                  {claim}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* Plain Text ATS Preview Modal */}
-      {atsModalOpen && (
-        <AtsPreviewModal
-          resumeData={currentPayload}
-          onClose={() => setAtsModalOpen(false)}
+      {/* Intelligence & Strategy Drawer */}
+      {strategyDrawerOpen && (
+        <ResumeStrategyDrawer
+          targetRole={selectedRole}
+          personality={personality}
+          onClose={() => setStrategyDrawerOpen(false)}
+          onApplyImprovement={(newRep) => setBlocksRep(newRep)}
         />
       )}
 
-      {/* Evidence Verification Drawer */}
-      {drawerClaim && (
+      {/* ATS Preview Modal */}
+      {atsModalOpen && resumeData && (
+        <AtsPreviewModal
+          resumeData={resumeData}
+          onClose={() => setAtsModalOpen(false)}
+          onExportAts={handleExportAts}
+        />
+      )}
+
+      {/* Inline Proof Drawer */}
+      {selectedProofClaim && (
         <EvidenceDrawer
-          claim={drawerClaim}
-          onClose={() => setDrawerClaim(null)}
+          claim={selectedProofClaim}
+          onClose={() => setSelectedProofClaim(null)}
         />
       )}
     </div>

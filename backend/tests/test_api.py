@@ -530,4 +530,78 @@ def test_profile_details_and_career_history(client):
     assert client.delete(f"/api/profile/link/{link_id}").status_code == 200
 
 
+def test_resume_intelligence_engine_full_lifecycle(client, db):
+    # 1. Test Professional Identity Model
+    res_identity = client.get("/api/resume/identity")
+    assert res_identity.status_code == 200
+    identity_data = res_identity.json()
+    assert "primary_domains" in identity_data
+    assert "strong_capabilities" in identity_data
+    assert "current_trajectory" in identity_data
+    assert "signature_nodes" in identity_data
+    assert len(identity_data["signature_nodes"]) > 0
+
+    # 2. Test Resume Strategy Engine for ML Role
+    strategy_payload = {
+        "target_role": "Machine Learning Engineer",
+        "layout_preference": "research"
+    }
+    res_strategy = client.post("/api/resume/strategy", json=strategy_payload)
+    assert res_strategy.status_code == 200
+    strategy_data = res_strategy.json()
+    assert strategy_data["target_role"] == "Machine Learning Engineer"
+    assert "Machine Learning" in strategy_data["skills_to_emphasize"] or "Python" in strategy_data["skills_to_emphasize"]
+    assert "candidate_positioning" in strategy_data
+    assert len(strategy_data["projects_to_highlight"]) > 0
+
+    # 3. Test Modular Block Representation
+    res_blocks = client.post("/api/resume/representation", json=strategy_payload)
+    assert res_blocks.status_code == 200
+    block_rep = res_blocks.json()
+    assert block_rep["target_role"] == "Machine Learning Engineer"
+    assert len(block_rep["blocks"]) >= 5
+    block_types = [b["block_type"] for b in block_rep["blocks"]]
+    assert "identity" in block_types
+    assert "signature" in block_types
+    assert "selected_work" in block_types
+    assert "technical_depth" in block_types
+
+    # 4. Test Fact Validator & Anti-Fabrication Engine
+    val_payload = {
+        "target_role": "Machine Learning Engineer",
+        "blocks": block_rep["blocks"]
+    }
+    res_val = client.post("/api/resume/validate", json=val_payload)
+    assert res_val.status_code == 200
+    val_data = res_val.json()
+    assert val_data["is_valid"] is True
+    assert len(val_data["fabricated_metrics_detected"]) == 0
+
+    # 5. Test Recruiter Critic & Communication Gaps
+    critique_payload = {
+        "target_role": "Backend Systems Engineer"
+    }
+    res_critique = client.post("/api/resume/critique", json=critique_payload)
+    assert res_critique.status_code == 200
+    critique_data = res_critique.json()
+    assert "readiness_dimensions" in critique_data
+    assert len(critique_data["readiness_dimensions"]) >= 4
+    assert "recruiter_attention_hierarchy" in critique_data
+    assert "0_to_3s" in critique_data["recruiter_attention_hierarchy"]
+    assert "fails_to_communicate_gaps" in critique_data
+
+    # 6. Test 1-Click Improve Representation
+    improve_payload = {
+        "target_role": "Backend Systems Engineer",
+        "selected_gaps_to_fix": critique_data["fails_to_communicate_gaps"][:1],
+        "layout_personality": "technical"
+    }
+    res_improve = client.post("/api/resume/improve-representation", json=improve_payload)
+    assert res_improve.status_code == 200
+    improved_rep = res_improve.json()
+    assert improved_rep["layout_personality"] == "technical"
+    assert len(improved_rep["blocks"]) >= 5
+
+
+
 

@@ -1,0 +1,292 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 5, 10, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 1000;
+  animation: fade-in 0.2s var(--ease-out) both;
+}
+
+.drawer {
+  width: 540px;
+  max-width: 95vw;
+  height: 100vh;
+  background: #0f172a;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.6);
+  animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.75rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0 0 0.25rem 0;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--t-fast);
+}
+
+.closeBtn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 1.75rem;
+  gap: 1.5rem;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.75rem 0.2rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: all var(--t-fast);
+}
+
+.tab:hover {
+  color: #f8fafc;
+}
+
+.tabActive {
+  color: #60a5fa;
+  border-bottom-color: #3b82f6;
+  font-weight: 600;
+}
+
+.body {
+  padding: 1.5rem 1.75rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  flex: 1;
+}
+
+/* Section Cards */
+.sectionCard {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sectionTitle {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #cbd5e1;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1rem;
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.metaLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.metaValue {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: #93c5fd;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.weakTag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.narrativeText {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+  margin: 0;
+}
+
+/* Recruiter Attention Timeline */
+.timelineList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.timelineRow {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 0.6rem 0.75rem;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.timelineTime {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #60a5fa;
+  font-family: monospace;
+  white-space: nowrap;
+  background: rgba(59, 130, 246, 0.15);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.timelineContent {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+/* Readiness Score Grid */
+.readinessGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.readinessCard {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.readinessTitle {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.readinessScore {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #10b981;
+}
+
+.readinessInsight {
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+/* Gaps / Communication Disconnects */
+.gapList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.gapItem {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.82rem;
+  color: #fde68a;
+  line-height: 1.45;
+}
+
+.actions {
+  padding: 1.25rem 1.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}

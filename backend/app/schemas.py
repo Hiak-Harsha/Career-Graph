@@ -299,3 +299,102 @@ class Token(BaseModel):
 
 class GitHubAuthCode(BaseModel):
     code: str
+
+# ─── Resume Intelligence Engine Schemas ────────────────────────────────────────
+
+class DomainSignatureNode(BaseModel):
+    id: str
+    name: str
+    category: str
+    level: str
+    evidence_count: int
+
+class DomainSignatureEdge(BaseModel):
+    source: str
+    target: str
+    relationship: str
+
+class ProfessionalIdentityResponse(BaseModel):
+    user_id: UUID
+    candidate_name: str
+    headline: str
+    primary_domains: List[str]
+    emerging_domains: List[str]
+    strong_capabilities: List[str]
+    current_trajectory: str
+    evidence_strength: str  # 'High', 'Moderate', 'Developing'
+    research_orientation: str  # 'Increasing', 'Stable', 'Experimental'
+    project_style: str
+    signature_nodes: List[DomainSignatureNode]
+    signature_edges: List[DomainSignatureEdge]
+    total_verified_claims: int
+    total_repositories: int
+
+class ResumeStrategyRequest(BaseModel):
+    target_role: str
+    custom_role_description: Optional[str] = None
+    layout_preference: Optional[str] = "modern_professional"
+
+class ResumeStrategyResponse(BaseModel):
+    target_role: str
+    candidate_positioning: str
+    primary_domains: List[str]
+    supporting_domains: List[str]
+    projects_to_highlight: List[str]
+    skills_to_emphasize: List[str]
+    evidence_priorities: List[str]
+    weak_areas: List[str]
+    suggested_layout: str  # 'editorial', 'technical', 'modern_professional', 'research', 'executive'
+    role_alignment_score: float  # 0.0 - 1.0
+
+class ResumeBlockItem(BaseModel):
+    block_type: str  # 'identity', 'signature', 'positioning', 'selected_work', 'technical_depth', 'trajectory', 'experience', 'education', 'certifications'
+    title: str
+    subtitle: Optional[str] = None
+    order: int
+    content_payload: Dict[str, Any]
+
+class ResumeBlockRepresentation(BaseModel):
+    target_role: str
+    layout_personality: str  # 'editorial', 'technical', 'modern_professional', 'research', 'executive'
+    positioning_statement: str
+    blocks: List[ResumeBlockItem]
+    evidence_coverage_rate: float
+    verification_rate: float
+    generated_at: datetime
+
+class ResumeValidationRequest(BaseModel):
+    target_role: str
+    blocks: List[ResumeBlockItem]
+
+class ResumeValidationResponse(BaseModel):
+    is_valid: bool
+    unverified_claims: List[str]
+    fabricated_metrics_detected: List[str]
+    sanitized_blocks: List[ResumeBlockItem]
+    verified_claim_count: int
+    total_claims_checked: int
+
+class ReadinessDimension(BaseModel):
+    dimension: str
+    rating: str  # 'Strong', 'Moderate', 'Developing'
+    score: int  # 0 - 100
+    insight: str
+
+class ResumeCritiqueRequest(BaseModel):
+    target_role: str
+    blocks: Optional[List[ResumeBlockItem]] = None
+
+class ResumeCritiqueResponse(BaseModel):
+    target_role: str
+    readiness_dimensions: List[ReadinessDimension]
+    overall_readiness: str  # 'Strong', 'Moderate', 'Developing'
+    recruiter_attention_hierarchy: Dict[str, str]  # '0_to_3s', '3_to_8s', '8_to_18s', '18_to_30s'
+    fails_to_communicate_gaps: List[str]
+    recommended_improvements: List[str]
+
+class ImproveRepresentationRequest(BaseModel):
+    target_role: str
+    selected_gaps_to_fix: List[str]
+    layout_personality: Optional[str] = "modern_professional"
+

@@ -5,15 +5,23 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black.svg?style=flat&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19.2-61DAFB.svg?style=flat&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?style=flat&logo=typescript)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/Tests-56%2F56%20Passed-success.svg?style=flat)]()
+[![Tests](https://img.shields.io/badge/Tests-57%2F57%20Passed-success.svg?style=flat)]()
 
-**Career Graph** is an evidence-led career intelligence platform that connects your GitHub repositories, code commits, and verified projects into a dynamic, interactive knowledge graph. It transforms verified work into a **Living Portfolio**, a **Resume Intelligence Engine with Interactive AI Polish**, a **Thought Lineage & Idea Incubator**, and an automated **Recruiter Matching Engine**.
+**Career Graph** is an evidence-led career intelligence platform that connects your GitHub repositories, code commits, and verified projects into a dynamic, interactive knowledge graph. It transforms verified work into a **Living Portfolio**, an **Interactive Living Career Graph with Telemetry**, a **Resume Intelligence Engine with AI Polish**, a **Thought Lineage & Idea Incubator**, and an automated **Recruiter Matching Engine**.
 
 ---
 
 ## 🌟 Key Features
 
-### 1. 🧠 Resume Intelligence Engine (Representation over Generation)
+### 1. 🕸️ Interactive Living Career Graph with Flow Telemetry
+- **Focus + Dim Neighborhood Isolation**: Clicking any node dims unrelated entities to 12% opacity, keeping the selected node and its direct 1st-degree connections 100% illuminated with thickened links and enhanced glows.
+- **Flowing Animated Edges**: Continuous animated dash patterns (`stroke-dashoffset`) convey electrical current and data telemetry between verified nodes instead of static lines.
+- **Growth Journey Replay ("Replay Your Journey")**: An interactive timeline player control that chronologically reconstructs the career graph step-by-step in the exact order projects and skills were built.
+- **Orbital Depth & Mastery Rings**: Visual depth scaling where mastered domains feature rotating orbital rings, skills scale with verified evidence items, and projects scale by architecture complexity.
+- **Cross-Domain Multi-Disciplinary Bridges**: Multi-tone linear gradient edges and glowing halos highlighting projects that bridge $\ge 2$ technical domains.
+- **Physics Tuning & Interactive Controls**: Zoom, pan, center reset, and domain/skill/project category filtering.
+
+### 2. 🧠 Resume Intelligence Engine (Representation over Generation)
 - **Professional Identity Model**: Automatically computes primary domains, emerging horizons, evidence strength, research orientation, project style, and trajectory directly from your Career Graph.
 - **Interactive Inline Resume Editing & AI Polish**: Edit summary statements and bullet points in real-time with one-click AI polishing that normalizes action verbs and optimizes impact.
 - **Resume Strategy Engine**: Curates role-specific context for target positions (*AI / ML Engineer*, *Backend Systems Engineer*, *Research Engineer*, *Full Stack*) with high-signal positioning theses.
@@ -30,15 +38,10 @@
   - *"What does my resume fail to communicate?"* analysis with **1-Click "Improve Representation"** execution.
 - **Anti-Fabrication & Fact Validator**: Blocks hallucinations and unevidenced percentage claims, replacing them with verified database evidence.
 
-### 2. 💡 Ideas Living Collective Entity & Thought Lineage
+### 3. 💡 Ideas Living Collective Entity & Thought Lineage
 - **Collective Entity Lifecycle**: Track concepts across maturity stages (`EARLY`, `MID`, `MATURE`) with potential impact ratings.
 - **Incremental Thought Lineage**: Log dated engineering notes, pivots, and research references as concepts evolve.
 - **Trajectory Auto-Drafter**: Auto-senses candidate graph momentum and emerging technical domains to draft new system concepts.
-
-### 3. 🕸️ Interactive D3 Career Graph
-- **Force-Directed Knowledge Graph**: Live graph topology connecting projects, technical domains, and verified skills.
-- **Node Inspection Drawers**: Click any node to drill down into underlying git commits, PR references, and confidence metrics.
-- **Physics Controls & Filters**: Custom gravity, link distance, charge tuning, and domain filtering.
 
 ### 4. 🌐 Living Portfolio & Credentials Management
 - **Verified Technical Artifacts**: Showcase your work with complexity ratings, architecture tags, and repository links.
@@ -88,8 +91,8 @@
 │ Next.js 16 + React 19 Frontend                                                          │
 │                                                                                         │
 │  ┌─────────────────────┐   ┌─────────────────────────┐   ┌───────────────────────────┐  │
-│  │  D3.js Career Graph │   │   Living Portfolio View │   │ Resume Intelligence View  │  │
-│  │  (Force Simulation) │   │  (Credentials, Skim Mode│   │ (5 Styles, AI Polish)     │  │
+│  │ D3 Living Graph     │   │   Living Portfolio View │   │ Resume Intelligence View  │  │
+│  │ (Telemetry, Replay) │   │  (Credentials, Skim Mode│   │ (5 Styles, AI Polish)     │  │
 │  └─────────────────────┘   └─────────────────────────┘   └───────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -180,18 +183,18 @@ Tests verify:
 - Full CRUD operations for Work Experience, Education, Certifications, and Social Links
 - Dual-variant vector resume generation & AI grammar improvements
 
-### Frontend Vitest Suite (38/38 Tests Passing)
+### Frontend Vitest Suite (39/39 Tests Passing)
 ```bash
 cd frontend
 npx vitest run --pool=threads
 ```
 
 Tests verify:
+- `CareerGraphView`: Flow telemetry, focus/dim isolation, growth journey replay, and cross-domain legend
 - `ResumeView`: Block rendering, 5 layout switches, interactive editing, certifications, and AI polish
 - `PortfolioView`: Case studies, credentials management, proof links, and public link sharing
-- `CareerGraphView`: Force simulation, node drag, physics controls, and domain filtering
 - `CandidateIntelligence`: Role matching, evidence drawers, and breakdown scoring
-- `ReviewQueue`: Human-in-the-loop technology confirmation & rejection
+- `ReviewQueue`: Human-in-the-loop technology confirmation & rejection with compound keying
 - `GitHubAuthModal`: PAT authentication & sync workflows
 
 ---

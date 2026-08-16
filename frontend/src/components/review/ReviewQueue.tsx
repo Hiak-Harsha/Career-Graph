@@ -51,19 +51,25 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
     void load();
   }, [load]);
 
+  const getItemIdentifier = (kind: string, item: ReviewItem, idx?: number): string => {
+    const rawId = item.id ?? item.domain_id ?? item.skill_id ?? `idx-${idx ?? 0}`;
+    const projId = item.project_id ?? "global";
+    return `${kind}-${projId}-${rawId}`;
+  };
+
   const decide = async (
     kind: "claims" | "domains" | "skills",
     item: ReviewItem,
     decision: "user_confirmed" | "user_rejected"
   ) => {
-    const key = `${kind}-${item.id ?? item.domain_id ?? item.skill_id}`;
-    setBusy(key);
+    const itemKey = getItemIdentifier(kind, item);
+    setBusy(itemKey);
 
     // Optimistic UI removal
     setQueue((prev) => ({
       ...prev,
       [kind]: prev[kind].filter(
-        (i) => (i.id ?? i.domain_id ?? i.skill_id) !== (item.id ?? item.domain_id ?? item.skill_id)
+        (i) => getItemIdentifier(kind, i) !== itemKey
       ),
     }));
 
@@ -114,8 +120,8 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
           {queue[kind].length === 0 ? (
             <p className={styles.empty}>Nothing awaiting review in {label.toLowerCase()}.</p>
           ) : (
-            queue[kind].map((item) => {
-              const key = `${kind}-${item.id ?? item.domain_id ?? item.skill_id}`;
+            queue[kind].map((item, idx) => {
+              const key = getItemIdentifier(kind, item, idx);
               const name =
                 item.claim ?? item.domain_name ?? item.skill_name ?? "Suggestion";
               const isItemBusy = busy === key;

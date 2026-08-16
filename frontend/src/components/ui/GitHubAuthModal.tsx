@@ -3,7 +3,7 @@
 import { useState } from "react";
 import styles from "./GitHubAuthModal.module.css";
 import { apiFetch } from "../../config";
-import { X, Key, Lock, Sparkles } from "lucide-react";
+import { X, Key } from "lucide-react";
 import { GithubIcon } from "./icons/GithubIcon";
 
 interface GitHubAuthModalProps {

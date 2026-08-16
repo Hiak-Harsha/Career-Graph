@@ -10,20 +10,16 @@ import { GithubIcon } from "../../../components/ui/icons/GithubIcon";
 function AuthCallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const code = searchParams.get("code");
   const [status, setStatus] = useState("Exchanging authorization code...");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(code ? "" : "No authorization code found in URL.");
   const exchanged = useRef(false);
 
   useEffect(() => {
-    if (exchanged.current) return;
-    const code = searchParams.get("code");
-
-    if (!code) {
-      setError("No authorization code found in URL.");
-      return;
-    }
-
+    if (!code || exchanged.current) return;
     exchanged.current = true;
+    let timer: NodeJS.Timeout | undefined;
+
     const exchangeCode = async () => {
       try {
         const response = await fetch(`${API_BASE}/auth/github`, {
@@ -38,13 +34,12 @@ function AuthCallbackHandler() {
         }
 
         const data = await response.json();
-        // Save token to localStorage
         if (typeof window !== "undefined") {
           window.localStorage.setItem("career-identity-access-token", data.access_token);
         }
 
         setStatus("Authentication successful! Redirecting to dashboard...");
-        setTimeout(() => {
+        timer = setTimeout(() => {
           router.push("/");
         }, 1000);
       } catch (err: unknown) {
@@ -53,8 +48,12 @@ function AuthCallbackHandler() {
       }
     };
 
-    exchangeCode();
-  }, [searchParams, router]);
+    void exchangeCode();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [code, router]);
 
   return (
     <div className={styles.container}>

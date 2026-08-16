@@ -11,6 +11,10 @@ import type {
   SkillProgress,
   ProblemSolvingProfile,
   TimelineEntry,
+  WorkExperience,
+  Education,
+  Certification,
+  SocialLink,
 } from "../types";
 
 interface UseCareerGraphReturn {
@@ -21,6 +25,10 @@ interface UseCareerGraphReturn {
   skillsProgress: SkillProgress[];
   problemSolving: ProblemSolvingProfile | null;
   timeline: TimelineEntry[];
+  workExperiences: WorkExperience[];
+  educations: Education[];
+  certifications: Certification[];
+  socialLinks: SocialLink[];
   pendingReviewCount: number;
   loading: boolean;
   syncing: boolean;
@@ -41,6 +49,10 @@ export function useCareerGraph(): UseCareerGraphReturn {
   const [skillsProgress, setSkillsProgress] = useState<SkillProgress[]>([]);
   const [problemSolving, setProblemSolving] = useState<ProblemSolvingProfile | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([]);
+  const [educations, setEducations] = useState<Education[]>([]);
+  const [certifications, setCertifications] = useState<Certification[]>([]);
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -54,12 +66,16 @@ export function useCareerGraph(): UseCareerGraphReturn {
       const res = await apiFetch("/portfolio");
       const data: PortfolioData = await res.json();
       setProfile(data.profile);
-      setProjects(data.projects);
-      setIdeas(data.ideas);
-      setDomainProgress(data.domain_progress);
-      setSkillsProgress(data.skills);
-      setProblemSolving(data.problem_solving_profile);
-      setTimeline(data.timeline);
+      setProjects(data.projects || []);
+      setIdeas(data.ideas || []);
+      setDomainProgress(data.domain_progress || []);
+      setSkillsProgress(data.skills || []);
+      setProblemSolving(data.problem_solving_profile || null);
+      setTimeline(data.timeline || []);
+      setWorkExperiences(data.work_experiences || []);
+      setEducations(data.educations || []);
+      setCertifications(data.certifications || []);
+      setSocialLinks(data.social_links || []);
       setLastUpdated(new Date());
       setError("");
 
@@ -123,7 +139,8 @@ export function useCareerGraph(): UseCareerGraphReturn {
   }, []);
 
   useEffect(() => {
-    refresh();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refresh();
   }, [refresh]);
 
   return {
@@ -134,6 +151,10 @@ export function useCareerGraph(): UseCareerGraphReturn {
     skillsProgress,
     problemSolving,
     timeline,
+    workExperiences,
+    educations,
+    certifications,
+    socialLinks,
     pendingReviewCount,
     loading,
     syncing,

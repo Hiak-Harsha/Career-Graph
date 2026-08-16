@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import * as d3 from "d3";
 import styles from "./CareerGraphView.module.css";
 import type { Project, DomainProgress, SkillProgress } from "../../types";
-import { Plus, Minus, RotateCcw, Network, Sparkles } from "lucide-react";
+import { Plus, Minus, RotateCcw, Network } from "lucide-react";
 
 // Node & Link types for D3
 export interface GraphNode extends d3.SimulationNodeDatum {

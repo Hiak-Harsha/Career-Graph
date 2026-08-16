@@ -8,8 +8,9 @@ load_dotenv()
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 JWT_SECRET = os.getenv("JWT_SECRET", "super_secret_jwt_signing_key_change_me_in_prod")
 
-if APP_ENV == "production" and JWT_SECRET == "super_secret_jwt_signing_key_change_me_in_prod":
-    raise ValueError("JWT_SECRET must be changed in production!")
+if APP_ENV != "development" and JWT_SECRET in ("super_secret_jwt_signing_key_change_me_in_prod", "", "change_me"):
+    raise ValueError("JWT_SECRET must be set to a secure unique key in non-development environments!")
+
 
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 1 week

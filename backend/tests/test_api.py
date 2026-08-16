@@ -430,6 +430,9 @@ def test_resume_ai_improve(client):
     summary_data = res_summary.json()
     assert len(summary_data["improved_text"]) > 0
     assert len(summary_data["suggestions"]) > 0
+    # Must NOT contain fabricated performance percentages
+    assert "35%" not in summary_data["improved_text"]
+    assert "40%" not in summary_data["improved_text"]
 
     res_bullet = client.post("/api/resumes/ai-improve", json={
         "field_type": "bullet",
@@ -439,6 +442,26 @@ def test_resume_ai_improve(client):
     assert res_bullet.status_code == 200
     bullet_data = res_bullet.json()
     assert "Architected and deployed" in bullet_data["improved_text"]
+    assert "35%" not in bullet_data["improved_text"]
+    assert "40%" not in bullet_data["improved_text"]
+
+
+def test_public_portfolio_endpoint(client):
+    # Retrieve public unauthenticated portfolio using default / demo alias
+    res_public = client.get("/api/portfolio/public/demo")
+    assert res_public.status_code == 200
+    data = res_public.json()
+    assert "profile" in data
+    assert "projects" in data
+    assert "domain_progress" in data
+    assert "skills" in data
+    assert "problem_solving_profile" in data
+    assert "work_experiences" in data
+    assert "educations" in data
+
+    # Test short public url alias /api/p/{identifier}
+    res_short = client.get("/api/p/default")
+    assert res_short.status_code == 200
 
 
 def test_profile_details_and_career_history(client):
@@ -505,5 +528,6 @@ def test_profile_details_and_career_history(client):
     assert client.delete(f"/api/profile/education/{edu_id}").status_code == 200
     assert client.delete(f"/api/profile/certification/{cert_id}").status_code == 200
     assert client.delete(f"/api/profile/link/{link_id}").status_code == 200
+
 
 

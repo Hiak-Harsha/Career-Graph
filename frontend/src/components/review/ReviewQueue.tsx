@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "../../config";
 import styles from "./ReviewQueue.module.css";
-import { Check, X, Loader2, CheckSquare } from "lucide-react";
+import { Check, X, Loader2 } from "lucide-react";
 
 export type ReviewItem = {
   id?: string;
@@ -47,6 +47,7 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 
@@ -95,8 +96,6 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
     ["domains", "Domains"],
     ["skills", "Skills"],
   ];
-
-  const totalPending = queue.claims.length + queue.domains.length + queue.skills.length;
 
   return (
     <section className={styles.root}>

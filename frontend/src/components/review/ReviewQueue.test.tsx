@@ -15,13 +15,14 @@ describe("ReviewQueue Component", () => {
   });
 
   it("renders suggestions from GET /review", async () => {
-    (apiFetch as any).mockResolvedValueOnce({
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      ok: true,
       json: async () => ({
         claims: [{ id: "c1", claim: "Built distributed pipeline", confidence: 0.92, project_title: "Data Engine" }],
         domains: [{ domain_id: "d1", domain_name: "Machine Learning", project_id: "p1", project_title: "AI Engine", confidence: 0.88 }],
         skills: [{ skill_id: "s1", skill_name: "PyTorch", project_id: "p1", project_title: "AI Engine", confidence: 0.95 }],
       }),
-    });
+    } as unknown as Response);
 
     const mockRefresh = vi.fn().mockResolvedValue(undefined);
     render(<ReviewQueue onRefreshAll={mockRefresh} />);
@@ -32,17 +33,18 @@ describe("ReviewQueue Component", () => {
   });
 
   it("calls PATCH and removes item when user confirms", async () => {
-    (apiFetch as any)
+    vi.mocked(apiFetch)
       .mockResolvedValueOnce({
+        ok: true,
         json: async () => ({
           claims: [{ id: "c1", claim: "High performance cache", confidence: 0.9, project_title: "Core" }],
           domains: [],
           skills: [],
         }),
-      })
+      } as unknown as Response)
       .mockResolvedValueOnce({
         ok: true,
-      });
+      } as unknown as Response);
 
     const mockRefresh = vi.fn().mockResolvedValue(undefined);
     render(<ReviewQueue onRefreshAll={mockRefresh} />);
@@ -66,9 +68,10 @@ describe("ReviewQueue Component", () => {
   });
 
   it("renders empty state cleanly when no pending suggestions exist", async () => {
-    (apiFetch as any).mockResolvedValueOnce({
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      ok: true,
       json: async () => ({ claims: [], domains: [], skills: [] }),
-    });
+    } as unknown as Response);
 
     render(<ReviewQueue onRefreshAll={vi.fn()} />);
 

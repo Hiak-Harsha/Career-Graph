@@ -36,6 +36,7 @@ export function exportAtsPdf(resumeData: ResumeData): void {
   doc.setFontSize(10);
   const contactParts: string[] = [];
   if (resumeData.profile?.email) contactParts.push(resumeData.profile.email);
+  if (resumeData.profile?.phone) contactParts.push(resumeData.profile.phone);
   if (resumeData.profile?.location) contactParts.push(resumeData.profile.location);
   if (resumeData.profile?.github_username) contactParts.push(`github.com/${resumeData.profile.github_username}`);
 
@@ -78,16 +79,51 @@ export function exportAtsPdf(resumeData: ResumeData): void {
   // 3. Technical Skills
   if (resumeData.skills && resumeData.skills.length > 0) {
     renderSectionHeader("Technical Skills");
-    const skillsText = `Core Technologies: ${resumeData.skills.join(", ")}`;
+    const skillsText = `Core Competencies: ${resumeData.skills.join(", ")}`;
     const skillLines = doc.splitTextToSize(skillsText, contentWidth);
     checkPageBreak(skillLines.length * 13);
     doc.text(skillLines, margin, y);
     y += skillLines.length * 13 + 6;
   }
 
-  // 4. Verifiable Projects & Technical Experience
+  // 4. Professional Work Experience
+  if (resumeData.experience && resumeData.experience.length > 0) {
+    renderSectionHeader("Professional Experience");
+
+    for (const exp of resumeData.experience) {
+      checkPageBreak(40);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${exp.role} — ${exp.company}`, margin, y);
+      
+      doc.setFont("helvetica", "normal");
+      const dateText = `${exp.start_date} – ${exp.end_date}`;
+      const dateWidth = doc.getTextWidth(dateText);
+      doc.text(dateText, pageWidth - margin - dateWidth, y);
+      y += 13;
+
+      if (exp.description) {
+        const descLines = doc.splitTextToSize(exp.description, contentWidth);
+        checkPageBreak(descLines.length * 13);
+        doc.text(descLines, margin, y);
+        y += descLines.length * 13 + 3;
+      }
+
+      if (exp.bullets && exp.bullets.length > 0) {
+        for (const b of exp.bullets) {
+          const bulletText = `•  ${b.trim()}`;
+          const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 10);
+          checkPageBreak(bulletLines.length * 13 + 4);
+          doc.text(bulletLines, margin + 8, y);
+          y += bulletLines.length * 13 + 3;
+        }
+      }
+      y += 4;
+    }
+  }
+
+  // 5. Verifiable Projects & Technical Experience
   if (resumeData.projects && resumeData.projects.length > 0) {
-    renderSectionHeader("Technical Projects & Verified Experience");
+    renderSectionHeader("Technical Projects & Verified Implementations");
 
     for (const project of resumeData.projects) {
       if (project.included === false) continue;
@@ -97,7 +133,7 @@ export function exportAtsPdf(resumeData: ResumeData): void {
       doc.setFont("helvetica", "bold");
       doc.text(project.title, margin, y);
 
-      const skillTag = project.skills?.length ? ` (${project.skills.slice(0, 4).join(", ")})` : "";
+      const skillTag = project.skills?.length ? ` (${project.skills.slice(0, 5).join(", ")})` : "";
       if (skillTag) {
         doc.setFont("helvetica", "italic");
         const titleWidth = doc.getTextWidth(project.title);
@@ -107,10 +143,9 @@ export function exportAtsPdf(resumeData: ResumeData): void {
 
       doc.setFont("helvetica", "normal");
       
-      // Bullets (either custom_bullets or narrative split)
       const bullets = project.custom_bullets?.length 
         ? project.custom_bullets 
-        : project.narrative.split(" • ");
+        : (project.narrative || "").split(" • ").filter(Boolean);
 
       for (const bullet of bullets) {
         const bulletText = `•  ${bullet.trim()}`;
@@ -123,7 +158,39 @@ export function exportAtsPdf(resumeData: ResumeData): void {
     }
   }
 
-  // 5. Evidence-Backed Claims & Achievements
+  // 6. Education
+  if (resumeData.education && resumeData.education.length > 0) {
+    renderSectionHeader("Education");
+    for (const edu of resumeData.education) {
+      checkPageBreak(30);
+      doc.setFont("helvetica", "bold");
+      doc.text(edu.degree, margin, y);
+
+      doc.setFont("helvetica", "normal");
+      const yearText = `${edu.start_year || ""} – ${edu.end_year || ""}`;
+      const yearWidth = doc.getTextWidth(yearText);
+      doc.text(yearText, pageWidth - margin - yearWidth, y);
+      y += 13;
+
+      doc.text(`${edu.institution}${edu.field_of_study ? ` — ${edu.field_of_study}` : ""}`, margin, y);
+      y += 16;
+    }
+  }
+
+  // 7. Certifications
+  if (resumeData.certifications && resumeData.certifications.length > 0) {
+    renderSectionHeader("Certifications");
+    for (const cert of resumeData.certifications) {
+      checkPageBreak(25);
+      doc.setFont("helvetica", "bold");
+      doc.text(cert.name, margin, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(` — ${cert.issuer}${cert.issue_date ? ` (${cert.issue_date})` : ""}`, margin + doc.getTextWidth(cert.name), y);
+      y += 14;
+    }
+  }
+
+  // 8. Evidence-Backed Claims & Achievements
   if (resumeData.claims && resumeData.claims.length > 0) {
     renderSectionHeader("Key Technical Achievements");
     for (const claim of resumeData.claims) {
@@ -143,7 +210,7 @@ export function exportAtsPdf(resumeData: ResumeData): void {
 
 /**
  * Generates a modern visual styled PDF with selectable text, typography hierarchy,
- * proof badge indicators, and clean margins.
+ * proof badge indicators, work experience, and education.
  */
 export function exportVisualPdf(resumeData: ResumeData): void {
   const doc = new jsPDF({
@@ -217,7 +284,7 @@ export function exportVisualPdf(resumeData: ResumeData): void {
     y += summaryLines.length * 13 + 8;
   }
 
-  // Skills Pills
+  // Skills
   if (resumeData.skills && resumeData.skills.length > 0) {
     renderVisualHeader("Verified Competencies & Skills");
     const skillsText = resumeData.skills.join("   •   ");
@@ -225,6 +292,40 @@ export function exportVisualPdf(resumeData: ResumeData): void {
     checkPageBreak(skillLines.length * 13);
     doc.text(skillLines, margin, y);
     y += skillLines.length * 13 + 8;
+  }
+
+  // Experience
+  if (resumeData.experience && resumeData.experience.length > 0) {
+    renderVisualHeader("Professional Experience");
+    for (const exp of resumeData.experience) {
+      checkPageBreak(40);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(exp.role, margin, y);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(37, 99, 235);
+      const roleWidth = doc.getTextWidth(exp.role);
+      doc.text(` @ ${exp.company}`, margin + roleWidth + 2, y);
+
+      doc.setTextColor(100, 116, 139);
+      const dateText = `${exp.start_date} – ${exp.end_date}`;
+      const dateWidth = doc.getTextWidth(dateText);
+      doc.text(dateText, pageWidth - margin - dateWidth, y);
+      y += 13;
+
+      if (exp.bullets && exp.bullets.length > 0) {
+        doc.setTextColor(51, 65, 85);
+        for (const b of exp.bullets) {
+          const bulletText = `•  ${b.trim()}`;
+          const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 12);
+          checkPageBreak(bulletLines.length * 13 + 4);
+          doc.text(bulletLines, margin + 8, y);
+          y += bulletLines.length * 13 + 3;
+        }
+      }
+      y += 4;
+    }
   }
 
   // Projects
@@ -251,7 +352,7 @@ export function exportVisualPdf(resumeData: ResumeData): void {
       doc.setTextColor(51, 65, 85);
       const bullets = project.custom_bullets?.length 
         ? project.custom_bullets 
-        : project.narrative.split(" • ");
+        : (project.narrative || "").split(" • ").filter(Boolean);
 
       for (let i = 0; i < bullets.length; i++) {
         const b = bullets[i].trim();
@@ -263,6 +364,36 @@ export function exportVisualPdf(resumeData: ResumeData): void {
       }
       y += 6;
     }
+  }
+
+  // Education & Certifications
+  if ((resumeData.education && resumeData.education.length > 0) || (resumeData.certifications && resumeData.certifications.length > 0)) {
+    renderVisualHeader("Education & Verified Credentials");
+    if (resumeData.education) {
+      for (const edu of resumeData.education) {
+        checkPageBreak(30);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(edu.degree, margin, y);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 116, 139);
+        doc.text(` — ${edu.institution} (${edu.start_year || ""} - ${edu.end_year || ""})`, margin + doc.getTextWidth(edu.degree), y);
+        y += 14;
+      }
+    }
+    if (resumeData.certifications) {
+      for (const cert of resumeData.certifications) {
+        checkPageBreak(30);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(cert.name, margin, y);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 116, 139);
+        doc.text(` — ${cert.issuer}`, margin + doc.getTextWidth(cert.name), y);
+        y += 14;
+      }
+    }
+    y += 6;
   }
 
   // Claims

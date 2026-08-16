@@ -3,7 +3,7 @@
 import React from "react";
 import styles from "./ProblemSolvingProfile.module.css";
 import type { ProblemSolvingProfile as ProfileData } from "../../types";
-import { Cpu, Workflow, Sparkles, Layers } from "lucide-react";
+import { Cpu, Workflow } from "lucide-react";
 
 interface ProblemSolvingProfileProps {
   profile: ProfileData | null;

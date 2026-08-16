@@ -17,9 +17,9 @@ import {
   Save,
   Plus,
   Trash2,
-  Eye,
   CheckSquare,
   Square,
+  X,
 } from "lucide-react";
 
 const ROLES = [
@@ -34,7 +34,12 @@ interface ResumeViewProps {
   loading: boolean;
   selectedRole: string;
   onRoleChange: (role: string) => void;
-  onSave?: (data: Partial<ResumeData>) => Promise<any>;
+  onSave?: (data: Partial<ResumeData>) => Promise<unknown>;
+  onAiImprove?: (
+    fieldType: "summary" | "bullet",
+    text: string,
+    targetRole: string
+  ) => Promise<{ improved_text: string; suggestions?: string[] } | null>;
   saving?: boolean;
 }
 
@@ -44,6 +49,7 @@ export function ResumeView({
   selectedRole,
   onRoleChange,
   onSave,
+  onAiImprove,
   saving = false,
 }: ResumeViewProps) {
   const [activeVariant, setActiveVariant] = useState<"visual" | "ats">("visual");
@@ -57,14 +63,22 @@ export function ResumeView({
   const [summary, setSummary] = useState(resumeData?.summary || "");
   const [projects, setProjects] = useState<ResumeProject[]>(resumeData?.projects || []);
   const [skills, setSkills] = useState<string[]>(resumeData?.skills || []);
+  const [experience, setExperience] = useState(resumeData?.experience || []);
+  const [education, setEducation] = useState(resumeData?.education || []);
+  const [certifications, setCertifications] = useState(resumeData?.certifications || []);
+  const [newSkillInput, setNewSkillInput] = useState("");
   const [aiPolishing, setAiPolishing] = useState(false);
 
+  // Sync state when incoming resumeData changes
   useEffect(() => {
-    if (resumeData) {
-      setSummary(resumeData.summary || "");
-      setProjects(resumeData.projects || []);
-      setSkills(resumeData.skills || []);
-    }
+    if (!resumeData) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSummary(resumeData.summary || "");
+    setProjects(resumeData.projects || []);
+    setSkills(resumeData.skills || []);
+    setExperience(resumeData.experience || []);
+    setEducation(resumeData.education || []);
+    setCertifications(resumeData.certifications || []);
   }, [resumeData]);
 
   const handleCitationClick = (label: string, url: string, contextTitle: string) => {
@@ -94,6 +108,9 @@ export function ResumeView({
         summary,
         projects,
         skills,
+        experience,
+        education,
+        certifications,
         target_role: selectedRole,
         variant: activeVariant,
       });
@@ -106,25 +123,29 @@ export function ResumeView({
   };
 
   const handleAiPolishSummary = async () => {
+    if (!onAiImprove) return;
     setAiPolishing(true);
     try {
-      const res = await fetch("/api/resumes/ai-improve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          field_type: "summary",
-          text: summary,
-          target_role: selectedRole,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await onAiImprove("summary", summary, selectedRole);
+      if (data && data.improved_text) {
         setSummary(data.improved_text);
       }
     } catch {
       // ignore
     } finally {
       setAiPolishing(false);
+    }
+  };
+
+  const handleAiPolishBullet = async (pIndex: number, bIndex: number, bulletText: string) => {
+    if (!onAiImprove) return;
+    try {
+      const data = await onAiImprove("bullet", bulletText, selectedRole);
+      if (data && data.improved_text) {
+        handleUpdateBullet(pIndex, bIndex, data.improved_text);
+      }
+    } catch {
+      // ignore
     }
   };
 
@@ -150,7 +171,7 @@ export function ResumeView({
     setProjects((prev) => {
       const next = [...prev];
       const bullets = [...(next[pIndex].custom_bullets || next[pIndex].narrative.split(" • "))];
-      bullets.push("Engineered new feature with quantifiable metrics");
+      bullets.push("Engineered new feature with verified code implementation");
       next[pIndex] = { ...next[pIndex], custom_bullets: bullets, narrative: bullets.join(" • ") };
       return next;
     });
@@ -164,6 +185,17 @@ export function ResumeView({
       next[pIndex] = { ...next[pIndex], custom_bullets: bullets, narrative: bullets.join(" • ") };
       return next;
     });
+  };
+
+  const handleAddSkill = () => {
+    const trimmed = newSkillInput.trim();
+    if (!trimmed || skills.includes(trimmed)) return;
+    setSkills((prev) => [...prev, trimmed]);
+    setNewSkillInput("");
+  };
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    setSkills((prev) => prev.filter((s) => s !== skillToRemove));
   };
 
   if (loading && !resumeData) {
@@ -182,6 +214,9 @@ export function ResumeView({
     summary,
     projects,
     skills,
+    experience,
+    education,
+    certifications,
     target_role: selectedRole,
     variant: activeVariant,
   };
@@ -317,17 +352,19 @@ export function ResumeView({
       {isEditing && (
         <div className={styles.editModeBar}>
           <span>
-            <strong>Edit Mode Active:</strong> You can modify your summary, refine bullet points, and choose which projects to include.
+            <strong>Edit Mode Active:</strong> Modify your summary, skills, custom bullet points, and included projects.
           </span>
-          <button
-            type="button"
-            className={styles.btnSmall}
-            onClick={handleAiPolishSummary}
-            disabled={aiPolishing}
-          >
-            <Sparkles size={12} />
-            {aiPolishing ? "Enhancing..." : "AI Enhance Summary"}
-          </button>
+          {onAiImprove && (
+            <button
+              type="button"
+              className={styles.btnSmall}
+              onClick={handleAiPolishSummary}
+              disabled={aiPolishing}
+            >
+              <Sparkles size={12} />
+              {aiPolishing ? "Enhancing..." : "AI Rephrase Summary"}
+            </button>
+          )}
         </div>
       )}
 
@@ -364,24 +401,102 @@ export function ResumeView({
           )}
         </div>
 
-        {/* Skills */}
+        {/* Technical Skills */}
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>Technical Skills</h2>
-          <div className={styles.skillsRow}>
-            <span className={styles.skillsLabel}>Core Competencies: </span>
-            {skills.map((s, idx) => (
-              <React.Fragment key={idx}>
-                <span>{s}</span>
-                {idx < skills.length - 1 && ", "}
-              </React.Fragment>
+          {isEditing ? (
+            <div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                {skills.map((s, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "2px 8px",
+                      borderRadius: 4,
+                      background: "#e0f2fe",
+                      color: "#0369a1",
+                      fontSize: 12,
+                    }}
+                  >
+                    {s}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSkill(s)}
+                      style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 6, maxWidth: 320 }}>
+                <input
+                  type="text"
+                  placeholder="Add skill (e.g. Docker, Rust)..."
+                  className={styles.bulletInput}
+                  value={newSkillInput}
+                  onChange={(e) => setNewSkillInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddSkill();
+                    }
+                  }}
+                />
+                <button type="button" className={styles.btnSmall} onClick={handleAddSkill}>
+                  Add
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.skillsRow}>
+              <span className={styles.skillsLabel}>Core Competencies: </span>
+              {skills.map((s, idx) => (
+                <React.Fragment key={idx}>
+                  <span>{s}</span>
+                  {idx < skills.length - 1 && ", "}
+                </React.Fragment>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Work Experience */}
+        {experience.length > 0 && (
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Professional Experience</h2>
+            {experience.map((exp, expIdx) => (
+              <div key={expIdx} className={styles.projectCard}>
+                <div className={styles.projectHeader}>
+                  <h3 className={styles.projectTitle}>
+                    {exp.role} — <span style={{ color: "#2563eb" }}>{exp.company}</span>
+                  </h3>
+                  <span className={styles.projectTech}>
+                    {exp.start_date} – {exp.end_date}
+                  </span>
+                </div>
+                {exp.description && <p className={styles.summaryText}>{exp.description}</p>}
+                {exp.bullets && exp.bullets.length > 0 && (
+                  <ul className={styles.bulletList}>
+                    {exp.bullets.map((b, bIdx) => (
+                      <li key={bIdx} className={styles.bulletItem}>
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             ))}
           </div>
-        </div>
+        )}
 
         {/* Projects */}
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>
-            {activeVariant === "ats" ? "Technical Experience & Projects" : "Verified Projects & Experience"}
+            {activeVariant === "ats" ? "Technical Projects & Experience" : "Verified Projects & Experience"}
           </h2>
 
           {projects.map((p, pIdx) => {
@@ -440,6 +555,16 @@ export function ResumeView({
                           value={b}
                           onChange={(e) => handleUpdateBullet(pIdx, bIdx, e.target.value)}
                         />
+                        {onAiImprove && (
+                          <button
+                            type="button"
+                            className={styles.btnSmall}
+                            onClick={() => handleAiPolishBullet(pIdx, bIdx, b)}
+                            title="AI Rephrase Bullet"
+                          >
+                            <Sparkles size={11} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           className={`${styles.btnSmall} ${styles.btnSmallDanger}`}
@@ -483,6 +608,23 @@ export function ResumeView({
             );
           })}
         </div>
+
+        {/* Education & Credentials */}
+        {(education.length > 0 || certifications.length > 0) && (
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Education & Credentials</h2>
+            {education.map((edu, idx) => (
+              <div key={idx} style={{ marginBottom: 8, fontSize: 13, color: "#334155" }}>
+                <strong>{edu.degree}</strong> — {edu.institution} ({edu.start_year || ""} - {edu.end_year || ""})
+              </div>
+            ))}
+            {certifications.map((cert, idx) => (
+              <div key={idx} style={{ fontSize: 13, color: "#334155" }}>
+                <strong>{cert.name}</strong> — {cert.issuer} {cert.issue_date && `(${cert.issue_date})`}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Claims / Verified Achievements */}
         {resumeData.claims && resumeData.claims.length > 0 && (

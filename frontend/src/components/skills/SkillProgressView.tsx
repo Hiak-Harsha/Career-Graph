@@ -4,7 +4,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import styles from "./SkillProgressView.module.css";
 import type { SkillProgress } from "../../types";
-import { TrendingUp, TrendingDown, Minus, ShieldCheck, Sparkles } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, ShieldCheck } from "lucide-react";
 
 interface SkillProgressViewProps {
   skillsProgress: SkillProgress[];

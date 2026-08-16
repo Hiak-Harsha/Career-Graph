@@ -107,11 +107,11 @@ export function CandidateIntelligence({
                 Role: {recruiterData.role_name}
               </p>
 
-              {(recruiterData.demonstrated_skills ?? recruiterData.strengths).length > 0 && (
+              {Boolean(recruiterData.strengths?.length) && (
                 <>
-                  <p className={styles.subLabel}>Demonstrated</p>
+                  <p className={styles.subLabel}>Demonstrated strengths</p>
                   <div className={styles.tagList}>
-                    {(recruiterData.demonstrated_skills ?? recruiterData.strengths).map((s: string, i: number) => (
+                    {recruiterData.strengths!.map((s: string, i: number) => (
                       <span
                         key={i}
                         className={styles.demonstratedTag}
@@ -124,11 +124,11 @@ export function CandidateIntelligence({
                 </>
               )}
 
-              {recruiterData.gaps.length > 0 && (
+              {Boolean(recruiterData.gaps?.length) && (
                 <>
                   <p className={`${styles.subLabel} ${styles.subLabelMt}`}>Evidence gaps</p>
                   <div className={styles.tagList}>
-                    {recruiterData.gaps.map((g: string, i: number) => (
+                    {recruiterData.gaps!.map((g: string, i: number) => (
                       <span
                         key={i}
                         className={styles.gapTag}
@@ -190,14 +190,14 @@ export function CandidateIntelligence({
           )}
 
           {/* Evidence-backed claims */}
-          {recruiterData.evidence_backed_claims.length > 0 && (
+          {Boolean(recruiterData.evidence_backed_claims?.length) && (
             <div className={styles.card}>
               <p className={`section-label ${styles.verifiedClaimsLabel}`}>Verified Claims</p>
               <p className={styles.claimsNote}>
                 Each claim maps to direct codebase evidence. Click to inspect the proof chain.
               </p>
               <div className={styles.claimsList}>
-                {recruiterData.evidence_backed_claims.map((claim: Claim) => (
+                {recruiterData.evidence_backed_claims!.map((claim: Claim) => (
                   <button
                     key={claim.id}
                     type="button"

@@ -26,13 +26,19 @@ from backend.app.schemas import (
     SocialLinkCreate, SocialLinkResponse,
     ProfileDetailsResponse, AIImproveRequest, AIImproveResponse,
     RecruiterMatchResponse, Token, GitHubAuthCode, CriteriaMatch,
-    ClaimResponse
+    ClaimResponse, EvidenceResponse
 )
 from backend.app.auth import get_current_user, create_access_token, exchange_github_code, encrypt_token, decrypt_token
 from backend.app.config import APP_ENV, OPENAI_API_KEY, ANTHROPIC_API_KEY
 from backend.app.analyzer import (
-    fetch_github_repos, fetch_github_repo_details, sync_github_project,
-    update_domain_progress_scores, update_skill_progress_scores, save_career_snapshot
+    fetch_github_repos,
+    fetch_github_repo_details,
+    sync_github_project,
+    openai_client,
+    anthropic_client,
+    update_domain_progress_scores,
+    update_skill_progress_scores,
+    save_career_snapshot
 )
 
 @asynccontextmanager
@@ -263,10 +269,9 @@ def sync_demo_data(current_user: User = Depends(get_current_user), db: Session =
 
 # --- Portfolio & Profile Details Endpoints ---
 
-@app.get("/api/portfolio", response_model=PortfolioResponse)
-def get_portfolio(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Compiles the complete dynamic portfolio map for the client."""
-    projects_db = db.query(Project).filter(Project.user_id == current_user.id).all()
+def build_portfolio_payload(user: User, db: Session) -> Dict[str, Any]:
+    """Constructs the complete living portfolio payload for a given user."""
+    projects_db = db.query(Project).filter(Project.user_id == user.id).all()
     
     projects = []
     for p in projects_db:
@@ -279,6 +284,37 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
             project_domains.c.status == "user_confirmed"
         ).all()
         
+        # Also include user-confirmed claims for the project
+        confirmed_claims = db.query(Claim).filter(
+            Claim.project_id == p.id,
+            Claim.status == "user_confirmed"
+        ).all()
+        
+        claims_response = []
+        for c in confirmed_claims:
+            ev_response = []
+            for ev in c.evidence:
+                ev_response.append(EvidenceResponse(
+                    id=ev.id,
+                    type=ev.type,
+                    source=ev.source,
+                    source_url=ev.source_url,
+                    source_identifier=ev.source_identifier,
+                    content=ev.content,
+                    captured_at=ev.captured_at,
+                    confidence=ev.confidence
+                ))
+            claims_response.append(ClaimResponse(
+                id=c.id,
+                claim=c.claim,
+                claim_type=c.claim_type,
+                confidence=c.confidence,
+                origin=c.origin,
+                status=c.status,
+                project_id=c.project_id,
+                evidence=ev_response
+            ))
+
         projects.append(ProjectResponse(
             id=p.id,
             user_id=p.user_id,
@@ -295,17 +331,18 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
             created_at=p.created_at,
             updated_at=p.updated_at,
             skills=[SkillResponse.model_validate(s) for s in confirmed_skills],
-            domains=[DomainResponse.model_validate(d) for d in confirmed_domains]
+            domains=[DomainResponse.model_validate(d) for d in confirmed_domains],
+            claims=claims_response
         ))
         
-    ideas = db.query(Idea).filter(Idea.user_id == current_user.id).all()
-    domain_progress = db.query(DomainProgress).filter(DomainProgress.user_id == current_user.id).all()
-    skill_progress = db.query(SkillProgress).filter(SkillProgress.user_id == current_user.id).all()
+    ideas = db.query(Idea).filter(Idea.user_id == user.id).all()
+    domain_progress = db.query(DomainProgress).filter(DomainProgress.user_id == user.id).all()
+    skill_progress = db.query(SkillProgress).filter(SkillProgress.user_id == user.id).all()
     
-    work_exps = db.query(WorkExperience).filter(WorkExperience.user_id == current_user.id).order_by(WorkExperience.created_at.desc()).all()
-    edus = db.query(Education).filter(Education.user_id == current_user.id).order_by(Education.created_at.desc()).all()
-    certs = db.query(Certification).filter(Certification.user_id == current_user.id).order_by(Certification.created_at.desc()).all()
-    links = db.query(SocialLink).filter(SocialLink.user_id == current_user.id).order_by(SocialLink.created_at.asc()).all()
+    work_exps = db.query(WorkExperience).filter(WorkExperience.user_id == user.id).order_by(WorkExperience.created_at.desc()).all()
+    edus = db.query(Education).filter(Education.user_id == user.id).order_by(Education.created_at.desc()).all()
+    certs = db.query(Certification).filter(Certification.user_id == user.id).order_by(Certification.created_at.desc()).all()
+    links = db.query(SocialLink).filter(SocialLink.user_id == user.id).order_by(SocialLink.created_at.asc()).all()
 
     # Calculate analytical problem solving profile
     confirmed_domain_names = [dp.domain.name for dp in domain_progress if dp.exposure_score > 0.3]
@@ -332,7 +369,7 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
         })
         
     return {
-        "profile": current_user,
+        "profile": user,
         "projects": projects,
         "ideas": ideas,
         "domain_progress": domain_progress,
@@ -344,6 +381,34 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
         "certifications": [CertificationResponse.model_validate(c) for c in certs],
         "social_links": [SocialLinkResponse.model_validate(l) for l in links]
     }
+
+
+@app.get("/api/portfolio", response_model=PortfolioResponse)
+def get_portfolio(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Retrieves full portfolio state including projects, domains, skills, progress, and career history."""
+    return build_portfolio_payload(current_user, db)
+
+
+@app.get("/api/portfolio/public/{identifier}", response_model=PortfolioResponse)
+@app.get("/api/p/{identifier}", response_model=PortfolioResponse)
+def get_public_portfolio(identifier: str, db: Session = Depends(get_db)):
+    """Unauthenticated public endpoint allowing recruiters and visitors to view a user's verified Living Portfolio."""
+    user = db.query(User).filter(User.github_username == identifier).first()
+    if not user:
+        try:
+            parsed_uuid = uuid.UUID(identifier)
+            user = db.query(User).filter(User.id == parsed_uuid).first()
+        except Exception:
+            pass
+    
+    if not user:
+        if identifier in ("demo", "default", "me"):
+            user = db.query(User).first()
+            
+    if not user:
+        raise HTTPException(status_code=404, detail="Public portfolio not found for identifier.")
+        
+    return build_portfolio_payload(user, db)
 
 
 # --- Structured Profile Details Endpoints ---
@@ -478,17 +543,26 @@ def delete_social_link(id: uuid.UUID, current_user: User = Depends(get_current_u
     return {"status": "deleted"}
 
 
-# --- Persisted & Dynamic Resume Endpoints ---
-
-def build_dynamic_resume_payload(current_user: User, role: str, db: Session) -> Dict[str, Any]:
+def build_dynamic_resume_payload(current_user: User, role: str, db: Session, variant: str = "visual") -> Dict[str, Any]:
     projects = db.query(Project).filter(Project.user_id == current_user.id).all()
     role_l = role.lower()
     
-    summary = f"Results-driven technical specialist with expertise in {role}. Demonstrated track record of developing sophisticated code solutions backed by git credentials."
-    if "machine learning" in role_l or "data" in role_l:
-        summary = f"Machine Learning specialist focused on predictive modeling, NLP pipelines, and data architectures. Backed by verified repository evidence showing execution depth in Python and algorithm design."
-    elif "backend" in role_l or "systems" in role_l:
-        summary = f"Backend systems engineer specialized in constructing robust REST APIs, network logic, and data engines. Experienced with high-performance routing and algorithmic optimizations."
+    if variant == "ats":
+        # ATS-optimized dense summary tailored for recruiter search algorithms
+        if "machine learning" in role_l or "data" in role_l:
+            summary = f"Technical Machine Learning Engineer with verified expertise in predictive modeling, NLP pipelines, data architectures, and algorithm optimization. Proficient in Python, high-throughput model execution, and production deployment."
+        elif "backend" in role_l or "systems" in role_l:
+            summary = f"Systems and Backend Software Engineer experienced in architecting scalable REST/gRPC APIs, microservices, database caching, and high-concurrency pipelines. Skilled in Go, Python, TypeScript, and distributed systems design."
+        else:
+            summary = f"Software Engineer with demonstrated competency in full-lifecycle software development, algorithm design, and maintainable systems architecture. Proven track record of shipping production-grade applications."
+    else:
+        # Visual narrative-focused summary emphasizing evidence-backed achievements
+        if "machine learning" in role_l or "data" in role_l:
+            summary = f"Machine Learning specialist focused on predictive modeling, NLP pipelines, and data architectures. Backed by verified repository evidence showing execution depth in Python and algorithm design."
+        elif "backend" in role_l or "systems" in role_l:
+            summary = f"Backend systems engineer specialized in constructing robust REST APIs, network logic, and data engines. Experienced with high-performance routing and algorithmic optimizations."
+        else:
+            summary = f"Results-driven technical specialist with expertise in {role}. Demonstrated track record of developing sophisticated code solutions backed by git credentials."
 
     scored_projects = []
     for p in projects:
@@ -581,6 +655,7 @@ def build_dynamic_resume_payload(current_user: User, role: str, db: Session) -> 
 
     return {
         "target_role": role,
+        "variant": variant,
         "profile": current_user,
         "summary": summary,
         "projects": resume_projects,
@@ -596,6 +671,7 @@ def build_dynamic_resume_payload(current_user: User, role: str, db: Session) -> 
 @app.get("/api/resume", response_model=ResumeResponse)
 def get_dynamic_resume(
     role: str = Query(..., description="Target role name"),
+    variant: Optional[str] = Query("visual", description="Variant: 'ats' or 'visual'"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -625,7 +701,7 @@ def get_dynamic_resume(
             "updated_at": saved.updated_at
         }
         
-    return build_dynamic_resume_payload(current_user, role, db)
+    return build_dynamic_resume_payload(current_user, role, db, variant=variant or "visual")
 
 
 @app.get("/api/resumes", response_model=List[ResumeResponse])
@@ -832,26 +908,61 @@ def delete_resume(id: uuid.UUID, current_user: User = Depends(get_current_user),
 
 @app.post("/api/resumes/ai-improve", response_model=AIImproveResponse)
 def ai_improve_resume_content(req: AIImproveRequest, current_user: User = Depends(get_current_user)):
-    """Enhances a summary or project bullet with quantifiable impact and ATS keywords."""
+    """Enhances a summary or project bullet with quantifiable impact and ATS keywords without fabricating false metrics."""
     role = req.target_role or "Software Engineer"
     text = req.text.strip()
     
+    # Try LLM if available
+    if openai_client:
+        try:
+            prompt = (
+                f"You are a technical resume editor. Improve the following candidate {req.field_type} for a '{role}' role.\n"
+                f"Text: \"{text}\"\n"
+                f"RULES:\n"
+                f"1. DO NOT fabricate or invent fake percentage metrics, benchmarks, or numbers not present in the input.\n"
+                f"2. Use strong, active engineering verbs (Architected, Engineered, Designed, Implemented, Deployed).\n"
+                f"3. Return JSON format strictly: {{\"improved_text\": \"...\", \"suggestions\": [\"...\", \"...\"]}}"
+            )
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                response_format={"type": "json_object"}
+            )
+            content = json.loads(response.choices[0].message.content)
+            if "improved_text" in content:
+                return AIImproveResponse(
+                    improved_text=content["improved_text"],
+                    suggestions=content.get("suggestions", [])
+                )
+        except Exception:
+            pass
+
+    # Deterministic high-integrity enhancement (zero metric fabrication)
     if req.field_type == "summary":
-        improved = f"Accomplished {role} specialized in architecting high-performance distributed systems, verified algorithm design, and scalable cloud services. Proven history of optimizing latency and leading resilient engineering implementations."
+        improved = (
+            f"Results-driven {role} specialized in architecting scalable distributed systems, "
+            f"designing high-performance APIs, and delivering verified engineering solutions. "
+            f"Demonstrated history of translating complex technical requirements into maintainable, production-grade architectures."
+        )
         suggestions = [
-            f"Highlight specific cloud environments (e.g. AWS, GCP, Kubernetes) matching {role}",
-            "Quantify years of production experience or team leadership",
-            "Include your core tech stack (e.g. TypeScript, Python, Go, PostgreSQL)"
+            f"Highlight specific cloud environments (e.g., AWS, GCP, Kubernetes) matching {role}",
+            "Detail core programming languages and frameworks in your primary stack",
+            "Mention architectural paradigms utilized (e.g., event-driven, microservices, CQRS)"
         ]
     else:
         # Bullet improvement
-        if not text.lower().startswith(("architected", "developed", "engineered", "implemented", "optimized", "built", "spearheaded")):
-            improved = f"Architected and deployed high-efficiency pipeline for {text.lower()}, improving processing throughput by 35% and reducing p99 latency."
+        clean_text = text.rstrip(".")
+        active_prefixes = ("architected", "developed", "engineered", "implemented", "optimized", "built", "spearheaded", "designed", "deployed")
+        
+        if any(clean_text.lower().startswith(p) for p in active_prefixes):
+            improved = f"{clean_text[0].upper() + clean_text[1:]} to ensure reliable system execution and high code maintainability."
         else:
-            improved = f"{text} — resulted in 40% efficiency gains and verified fault tolerance across production environments."
+            improved = f"Architected and deployed solution for {clean_text.lower()} to ensure robust execution and system reliability."
+            
         suggestions = [
-            "Add measurable metric (e.g. latency reduction, % test coverage, requests/sec)",
-            "Mention the exact technologies/algorithms leveraged in the implementation"
+            "Add verified project metrics if backed by your evidence (e.g., requests/sec, latency, data volume)",
+            "Specify the exact protocols, libraries, or algorithms leveraged in the implementation"
         ]
 
     return AIImproveResponse(

@@ -59,7 +59,7 @@ import {
 import { GithubIcon } from "../components/ui/icons/GithubIcon";
 
 // Types
-import type { ActiveView, Idea, Claim, Project, DomainProgress, TimelineEntry, PortfolioData } from "../types";
+import type { ActiveView, Idea, Claim, Project, DomainProgress, TimelineEntry } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -181,6 +181,10 @@ export default function CareerGraphApp() {
     skillsProgress,
     problemSolving,
     timeline,
+    workExperiences,
+    educations,
+    certifications,
+    socialLinks,
     pendingReviewCount,
     loading,
     syncing,
@@ -198,6 +202,7 @@ export default function CareerGraphApp() {
     saving: resumeSaving,
     fetchResume,
     saveCurrentResume,
+    aiImprove,
   } = useResume();
   const { recruiterData, loading: recruiterLoading, fetchMatch } = useRecruiter();
 
@@ -367,6 +372,10 @@ export default function CareerGraphApp() {
                       recurring_patterns_detected: [],
                     },
                     timeline,
+                    work_experiences: workExperiences,
+                    educations: educations,
+                    certifications: certifications,
+                    social_links: socialLinks,
                   }}
                   loading={loading}
                   onOpenProjectEvidence={(proj) => {
@@ -420,6 +429,7 @@ export default function CareerGraphApp() {
                   selectedRole={selectedRole}
                   onRoleChange={setSelectedRole}
                   onSave={saveCurrentResume}
+                  onAiImprove={aiImprove}
                   saving={resumeSaving}
                 />
               )}

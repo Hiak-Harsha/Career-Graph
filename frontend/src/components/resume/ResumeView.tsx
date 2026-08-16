@@ -8,6 +8,18 @@ import type {
   ResumePersonality,
   ResumeBlockRepresentation,
   ResumeBlockItem,
+  IdentityBlockPayload,
+  SignatureBlockPayload,
+  PositioningBlockPayload,
+  SelectedWorkBlockPayload,
+  TechnicalDepthBlockPayload,
+  TrajectoryBlockPayload,
+  ExperienceBlockPayload,
+  EducationBlockPayload,
+  CertificationsBlockPayload,
+  SelectedWorkProject,
+  EvidenceClaimItem,
+  TechnicalDepthCluster,
 } from "../../types";
 import { apiFetch } from "../../config";
 import { ProfessionalSignature } from "./ProfessionalSignature";
@@ -17,7 +29,6 @@ import { EvidenceDrawer } from "../evidence/EvidenceDrawer";
 import { exportVisualPdf, exportAtsPdf } from "../../utils/pdfExport";
 import { GithubIcon } from "../ui/icons/GithubIcon";
 import {
-  FileText,
   Download,
   Eye,
   Sliders,
@@ -26,6 +37,11 @@ import {
   Mail,
   ArrowRight,
   Loader2,
+  Edit3,
+  Check,
+  Sparkles,
+  Award,
+  ExternalLink,
 } from "lucide-react";
 
 interface ResumeViewProps {
@@ -57,7 +73,10 @@ const PERSONALITIES: { id: ResumePersonality; label: string }[] = [
 export function ResumeView({
   initialRole = "AI / ML Engineer",
   onRoleChange,
+  onSave,
   resumeData,
+  saving = false,
+  onAiImprove,
 }: ResumeViewProps) {
   const [selectedRole, setSelectedRole] = useState(initialRole);
   const [personality, setPersonality] = useState<ResumePersonality>("modern_professional");
@@ -66,6 +85,11 @@ export function ResumeView({
   const [strategyDrawerOpen, setStrategyDrawerOpen] = useState(false);
   const [atsModalOpen, setAtsModalOpen] = useState(false);
   const [selectedProofClaim, setSelectedProofClaim] = useState<Claim | null>(null);
+
+  // Editing state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedPositioning, setEditedPositioning] = useState("");
+  const [isImprovingSummary, setIsImprovingSummary] = useState(false);
 
   // Fetch block-based structured representation
   useEffect(() => {
@@ -84,6 +108,12 @@ export function ResumeView({
         if (res.ok) {
           const data: ResumeBlockRepresentation = await res.json();
           setBlocksRep(data);
+          const positioningPayload = data.blocks.find(
+            (b) => b.block_type === "positioning"
+          )?.content_payload as PositioningBlockPayload | undefined;
+          if (positioningPayload?.statement) {
+            setEditedPositioning(positioningPayload.statement);
+          }
         }
       } catch {
         // Handled silently
@@ -94,6 +124,13 @@ export function ResumeView({
 
     fetchRepresentation();
   }, [selectedRole, personality]);
+
+  // Sync positioning from resumeData if available
+  useEffect(() => {
+    if (resumeData?.summary && !editedPositioning) {
+      setEditedPositioning(resumeData.summary);
+    }
+  }, [resumeData?.summary, editedPositioning]);
 
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
@@ -124,20 +161,45 @@ export function ResumeView({
     }
   };
 
-  // Helper to extract blocks by type
+  const handleSaveResume = async () => {
+    if (onSave) {
+      await onSave({
+        summary: editedPositioning,
+        target_role: selectedRole,
+      });
+      setIsEditing(false);
+    }
+  };
+
+  const handleAiImproveSummary = async () => {
+    if (!onAiImprove || !editedPositioning) return;
+    try {
+      setIsImprovingSummary(true);
+      const res = await onAiImprove("summary", editedPositioning, selectedRole);
+      if (res && res.improved_text) {
+        setEditedPositioning(res.improved_text);
+      }
+    } catch {
+      // Handled silently
+    } finally {
+      setIsImprovingSummary(false);
+    }
+  };
+
+  // Helper to extract typed blocks
   const getBlock = (type: string): ResumeBlockItem | undefined => {
     return blocksRep?.blocks.find((b) => b.block_type === type);
   };
 
-  const identityBlock = getBlock("identity")?.content_payload;
-  const signatureBlock = getBlock("signature")?.content_payload;
-  const positioningBlock = getBlock("positioning")?.content_payload;
-  const selectedWorkBlock = getBlock("selected_work")?.content_payload;
-  const technicalDepthBlock = getBlock("technical_depth")?.content_payload;
-  const trajectoryBlock = getBlock("trajectory")?.content_payload;
-  const experienceBlock = getBlock("experience")?.content_payload;
-  const educationBlock = getBlock("education")?.content_payload;
-  const certsBlock = getBlock("certifications")?.content_payload;
+  const identityBlock = getBlock("identity")?.content_payload as IdentityBlockPayload | undefined;
+  const signatureBlock = getBlock("signature")?.content_payload as SignatureBlockPayload | undefined;
+  const positioningBlock = getBlock("positioning")?.content_payload as PositioningBlockPayload | undefined;
+  const selectedWorkBlock = getBlock("selected_work")?.content_payload as SelectedWorkBlockPayload | undefined;
+  const technicalDepthBlock = getBlock("technical_depth")?.content_payload as TechnicalDepthBlockPayload | undefined;
+  const trajectoryBlock = getBlock("trajectory")?.content_payload as TrajectoryBlockPayload | undefined;
+  const experienceBlock = getBlock("experience")?.content_payload as ExperienceBlockPayload | undefined;
+  const educationBlock = getBlock("education")?.content_payload as EducationBlockPayload | undefined;
+  const certsBlock = getBlock("certifications")?.content_payload as CertificationsBlockPayload | undefined;
 
   // Personality paper CSS class
   const paperClass =
@@ -189,6 +251,38 @@ export function ResumeView({
         </div>
 
         <div className={styles.actionsGroup}>
+          {onSave && (
+            <button
+              type="button"
+              className={`btn ${isEditing ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => {
+                if (isEditing) {
+                  handleSaveResume();
+                } else {
+                  setIsEditing(true);
+                }
+              }}
+              disabled={saving}
+            >
+              {saving ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : isEditing ? (
+                <>
+                  <Check size={14} />
+                  <span>Save Changes</span>
+                </>
+              ) : (
+                <>
+                  <Edit3 size={14} />
+                  <span>Edit Resume</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             className="btn btn-secondary"
@@ -223,7 +317,7 @@ export function ResumeView({
           <div className={styles.headerBlock}>
             <div className={styles.nameRow}>
               <h1 className={styles.candidateName}>
-                {identityBlock?.name || resumeData?.profile?.name || "Lalam Harsha Sri Vardhan"}
+                {identityBlock?.name || resumeData?.profile?.name || "Your Name"}
               </h1>
               <span className={styles.verifiedBadge}>
                 <ShieldCheck size={14} />
@@ -231,59 +325,99 @@ export function ResumeView({
               </span>
             </div>
             <p className={styles.headlineText}>
-              {identityBlock?.headline || `${selectedRole.toUpperCase()} · AI SYSTEMS & ALGORITHMS`}
+              {identityBlock?.headline || `${selectedRole.toUpperCase()} · VERIFIED ENGINEER`}
             </p>
             <div className={styles.contactRow}>
               <span className={styles.contactItem}>
                 <Mail size={13} />
-                <span>{identityBlock?.email || resumeData?.profile?.email || "harsha@example.com"}</span>
+                <span>{identityBlock?.email || resumeData?.profile?.email || "your.email@example.com"}</span>
               </span>
               <span className={styles.contactItem}>
                 <MapPin size={13} />
-                <span>{identityBlock?.location || resumeData?.profile?.location || "Bangalore, India"}</span>
+                <span>{identityBlock?.location || resumeData?.profile?.location || "City, Country"}</span>
               </span>
               <span className={styles.contactItem}>
                 <GithubIcon size={13} />
-                <span>github.com/{identityBlock?.github || resumeData?.profile?.github_username || "harsha"}</span>
+                <span>github.com/{identityBlock?.github || resumeData?.profile?.github_username || "username"}</span>
               </span>
             </div>
           </div>
 
           {/* 2. Professional Graph Signature */}
-          {signatureBlock?.nodes && (
+          {signatureBlock?.nodes && signatureBlock.nodes.length > 0 && (
             <ProfessionalSignature
               nodes={signatureBlock.nodes}
-              edges={signatureBlock.edges}
+              edges={signatureBlock.edges || []}
               projectStyle={signatureBlock.project_style}
             />
           )}
 
           {/* 3. Core Positioning Block */}
-          {positioningBlock && (
-            <section aria-labelledby="heading-positioning">
+          <section aria-labelledby="heading-positioning">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 id="heading-positioning" className={styles.sectionTitle}>
                 <span>Core Profile & Positioning</span>
                 <span className={styles.sectionSubtitle}>
-                  Evidence Strength: {positioningBlock.evidence_strength || "High"}
+                  Evidence Strength: {positioningBlock?.evidence_strength || "High"}
                 </span>
               </h2>
+              {isEditing && onAiImprove && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", gap: "0.3rem" }}
+                  onClick={handleAiImproveSummary}
+                  disabled={isImprovingSummary}
+                >
+                  {isImprovingSummary ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={12} />
+                  )}
+                  <span>AI Polish</span>
+                </button>
+              )}
+            </div>
+
+            {isEditing ? (
+              <textarea
+                className={styles.positioningText}
+                style={{
+                  width: "100%",
+                  minHeight: "80px",
+                  background: "rgba(15, 23, 42, 0.4)",
+                  border: "1px solid var(--border-subtle)",
+                  borderRadius: "6px",
+                  padding: "0.6rem",
+                  color: "inherit",
+                  fontFamily: "inherit",
+                  fontSize: "0.9rem",
+                  lineHeight: "1.5",
+                  resize: "vertical",
+                }}
+                value={editedPositioning}
+                onChange={(e) => setEditedPositioning(e.target.value)}
+                placeholder="Enter your professional summary or positioning statement..."
+              />
+            ) : (
               <p className={styles.positioningText}>
-                {positioningBlock.statement ||
+                {editedPositioning ||
+                  positioningBlock?.statement ||
                   resumeData?.summary ||
-                  "AI/ML engineer focused on intelligent systems with strong algorithmic foundations."}
+                  "Engineer focused on intelligent systems with strong algorithmic foundations."}
               </p>
-            </section>
-          )}
+            )}
+          </section>
 
           {/* 4. Selected Work & Systems */}
-          {selectedWorkBlock?.projects && (
+          {selectedWorkBlock?.projects && selectedWorkBlock.projects.length > 0 && (
             <section aria-labelledby="heading-selected-work">
               <h2 id="heading-selected-work" className={styles.sectionTitle}>
                 <span>Selected Work & Systems</span>
                 <span className={styles.sectionSubtitle}>Verifiable Engineering Artifacts</span>
               </h2>
               <div className={styles.projectList}>
-                {selectedWorkBlock.projects.map((proj: any) => (
+                {selectedWorkBlock.projects.map((proj: SelectedWorkProject) => (
                   <div key={proj.id || proj.title} className={styles.projectCard}>
                     <div className={styles.projectHeader}>
                       <div className={styles.projectTitleGroup}>
@@ -301,15 +435,15 @@ export function ResumeView({
                     <p className={styles.projectDesc}>{proj.description}</p>
 
                     {/* Verified Claims */}
-                    {proj.evidence_claims?.length > 0 && (
+                    {proj.evidence_claims && proj.evidence_claims.length > 0 && (
                       <div className={styles.claimsList}>
-                        {proj.evidence_claims.map((c: any) => (
+                        {proj.evidence_claims.map((c: EvidenceClaimItem) => (
                           <div key={c.id || c.claim} className={styles.claimRow}>
                             <span className={styles.claimText}>&ldquo;{c.claim}&rdquo;</span>
                             <button
                               type="button"
                               className={styles.inspectBtn}
-                              onClick={() => handleInspectClaim(c.id, c.claim)}
+                              onClick={() => handleInspectClaim(c.id || "", c.claim)}
                             >
                               <span>Inspect proof</span>
                               <ArrowRight size={11} />
@@ -325,18 +459,20 @@ export function ResumeView({
           )}
 
           {/* 5. Technical Depth Block */}
-          {technicalDepthBlock?.clusters && (
+          {technicalDepthBlock?.clusters && technicalDepthBlock.clusters.length > 0 && (
             <section aria-labelledby="heading-technical-depth">
               <h2 id="heading-technical-depth" className={styles.sectionTitle}>
                 <span>Technical Depth</span>
                 <span className={styles.sectionSubtitle}>Evidence-Backed Capability Clusters</span>
               </h2>
               <div className={styles.depthGrid}>
-                {technicalDepthBlock.clusters.map((cluster: any, idx: number) => (
+                {technicalDepthBlock.clusters.map((cluster: TechnicalDepthCluster, idx: number) => (
                   <div key={idx} className={styles.depthCard}>
                     <span className={styles.depthDomain}>{cluster.domain}</span>
                     <span className={styles.depthCaps}>{cluster.capabilities}</span>
-                    <span className={styles.depthNote}>{cluster.evidence_note}</span>
+                    {cluster.evidence_note && (
+                      <span className={styles.depthNote}>{cluster.evidence_note}</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -372,7 +508,7 @@ export function ResumeView({
                 <span>Professional Experience</span>
               </h2>
               <div className={styles.historyList}>
-                {experienceBlock?.experiences.map((exp: any, i: number) => (
+                {experienceBlock?.experiences?.map((exp, i) => (
                   <div key={i} className={styles.historyItem}>
                     <div className={styles.historyHeader}>
                       <span className={styles.historyTitle}>{exp.role}</span>
@@ -399,7 +535,7 @@ export function ResumeView({
                 <span>Education</span>
               </h2>
               <div className={styles.historyList}>
-                {educationBlock?.educations.map((edu: any, i: number) => (
+                {educationBlock?.educations?.map((edu, i) => (
                   <div key={i} className={styles.historyItem}>
                     <div className={styles.historyHeader}>
                       <span className={styles.historyTitle}>{edu.institution}</span>
@@ -409,6 +545,43 @@ export function ResumeView({
                     </div>
                     <span className={styles.historySubtitle}>
                       {edu.degree} {edu.field_of_study ? `in ${edu.field_of_study}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 9. Certifications Block */}
+          {Boolean(certsBlock?.certifications && certsBlock.certifications.length > 0) && (
+            <section aria-labelledby="heading-certifications">
+              <h2 id="heading-certifications" className={styles.sectionTitle}>
+                <span>Certifications & Credentials</span>
+              </h2>
+              <div className={styles.historyList}>
+                {certsBlock?.certifications?.map((cert, i) => (
+                  <div key={i} className={styles.historyItem}>
+                    <div className={styles.historyHeader}>
+                      <span className={styles.historyTitle} style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <Award size={13} color="var(--accent-primary)" />
+                        <span>{cert.name}</span>
+                      </span>
+                      {cert.issue_date && (
+                        <span className={styles.historyDates}>{cert.issue_date}</span>
+                      )}
+                    </div>
+                    <span className={styles.historySubtitle}>
+                      {cert.issuer}
+                      {cert.credential_url && (
+                        <a
+                          href={cert.credential_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ marginLeft: "0.5rem", color: "var(--accent-primary)", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}
+                        >
+                          <ExternalLink size={11} />
+                        </a>
+                      )}
                     </span>
                   </div>
                 ))}

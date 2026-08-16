@@ -1,13 +1,13 @@
 # Career Graph 🚀
-### Production-Grade Living Portfolio & Evidence-Backed Career Intelligence
+### Production-Grade Living Portfolio, Graph-Led Career Intelligence & Evidence-Backed Resume Engine
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black.svg?style=flat&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19.2-61DAFB.svg?style=flat&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?style=flat&logo=typescript)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/Tests-52%2F52%20Passed-success.svg?style=flat)]()
+[![Tests](https://img.shields.io/badge/Tests-56%2F56%20Passed-success.svg?style=flat)]()
 
-**Career Graph** is an evidence-led career intelligence platform that connects your GitHub repositories, code commits, and verified projects into a dynamic, interactive knowledge graph. It transforms verified work into a **Living Portfolio**, a **Resume Intelligence Engine**, and an automated **Recruiter Matching Engine**.
+**Career Graph** is an evidence-led career intelligence platform that connects your GitHub repositories, code commits, and verified projects into a dynamic, interactive knowledge graph. It transforms verified work into a **Living Portfolio**, a **Resume Intelligence Engine with Interactive AI Polish**, a **Thought Lineage & Idea Incubator**, and an automated **Recruiter Matching Engine**.
 
 ---
 
@@ -15,39 +15,48 @@
 
 ### 1. 🧠 Resume Intelligence Engine (Representation over Generation)
 - **Professional Identity Model**: Automatically computes primary domains, emerging horizons, evidence strength, research orientation, project style, and trajectory directly from your Career Graph.
+- **Interactive Inline Resume Editing & AI Polish**: Edit summary statements and bullet points in real-time with one-click AI polishing that normalizes action verbs and optimizes impact.
 - **Resume Strategy Engine**: Curates role-specific context for target positions (*AI / ML Engineer*, *Backend Systems Engineer*, *Research Engineer*, *Full Stack*) with high-signal positioning theses.
-- **Modular Block Representation**: Clean block-based architecture (`IdentityBlock`, `ProfessionalSignatureBlock`, `PositioningBlock`, `SelectedWorkBlock`, `TechnicalDepthBlock`, `CurrentTrajectoryBlock`, `ExperienceBlock`, `EducationBlock`).
+- **Modular Block Representation**: Clean block-based architecture (`IdentityBlock`, `ProfessionalSignatureBlock`, `PositioningBlock`, `SelectedWorkBlock`, `TechnicalDepthBlock`, `CurrentTrajectoryBlock`, `ExperienceBlock`, `EducationBlock`, `CertificationsBlock`).
 - **5 Visual Layout Personalities**:
   - `Modern`: Balanced, recruiter-friendly cards with clean hierarchy.
   - `Technical`: Monospace architecture accents and engineering-focused badges.
   - `Editorial`: Elegant serif typography, research framing, and classic dividers.
   - `Research`: Methodology-focused with empirical proof callouts.
   - `Executive`: Systems-impact and trajectory-first layout.
-- **Recruiter Critic & Gap Analysis**:
+- **Dynamic Recruiter Critic & Gap Analysis**:
   - 10-second attention breakdown modeling what recruiters notice first.
-  - Multidimensional Readiness Scores (*Role Relevance*, *Technical Depth*, *Evidence Strength*, *Clarity & Conciseness*).
+  - Empirical 6-Dimensional Readiness Scores (*Role Relevance*, *Evidence Coverage*, *Differentiation*, *Technical Depth*, *Clarity & Scannability*, *Claim Verification*).
   - *"What does my resume fail to communicate?"* analysis with **1-Click "Improve Representation"** execution.
-- **Anti-Fabrication & Fact Validator**: Blocks hallucinations and unevidenced percentage claims ("improved performance by 40%"), replacing them with verified database evidence.
+- **Anti-Fabrication & Fact Validator**: Blocks hallucinations and unevidenced percentage claims, replacing them with verified database evidence.
 
-### 2. 🕸️ Interactive D3 Career Graph
+### 2. 💡 Ideas Living Collective Entity & Thought Lineage
+- **Collective Entity Lifecycle**: Track concepts across maturity stages (`EARLY`, `MID`, `MATURE`) with potential impact ratings.
+- **Incremental Thought Lineage**: Log dated engineering notes, pivots, and research references as concepts evolve.
+- **Trajectory Auto-Drafter**: Auto-senses candidate graph momentum and emerging technical domains to draft new system concepts.
+
+### 3. 🕸️ Interactive D3 Career Graph
 - **Force-Directed Knowledge Graph**: Live graph topology connecting projects, technical domains, and verified skills.
 - **Node Inspection Drawers**: Click any node to drill down into underlying git commits, PR references, and confidence metrics.
 - **Physics Controls & Filters**: Custom gravity, link distance, charge tuning, and domain filtering.
 
-### 3. 📄 Dual-Variant Vector Resume Builder & ATS Preview
-- **100% Vector Text ATS PDF**: Renders selectable, searchable vector PDFs formatted to standard ATS margins and typography (zero screenshot PNG bloat).
-- **Visual Vector PDF**: Personality-styled modern visual PDF with typography hierarchy and proof indicators.
-- **ATS Plain Text Preview**: Instant copy-paste plain text generator for job application portals.
-
-### 4. 🌐 Living Portfolio
+### 4. 🌐 Living Portfolio & Credentials Management
 - **Verified Technical Artifacts**: Showcase your work with complexity ratings, architecture tags, and repository links.
+- **Comprehensive Credentials Editor**: Built-in modal UI to add, edit, and delete Work Experiences, Educations, Certifications, and Social/Portfolio links with live cache synchronization.
 - **Problem-Solving Profile**: Analytical archetype detection based on confirmed skill usage patterns.
 - **Skill Progression Bars**: Real-time exposure, depth, activity, and recency tracking.
-- **Shareable Identity**: Instant clipboard link sharing for recruiters and peers (`/p/[username]`).
+- **Shareable Public Identity (`/p/[username]`)**:
+  - Full living portfolio view with verified evidence badges.
+  - **15-Second Recruiter Fast Skim Mode** for quick executive evaluations.
 
 ### 5. 🎯 Recruiter Intelligence Match & Review Queue
 - **Role-Based Evaluation**: Compares confirmed capabilities against target criteria.
 - **Human-in-the-Loop Review Queue**: Confirm, reject, or adjust weights on detected technologies before they impact graph scores.
+
+### 6. 💻 Standalone CLI Tool
+- Inspect profile and capabilities from the terminal: `python cli.py profile`
+- List and create incubator ideas: `python cli.py ideas list` / `python cli.py ideas create`
+- Generate ASCII/plain-text resumes tailored to target roles: `python cli.py resume generate`
 
 ---
 
@@ -69,7 +78,7 @@
 │  └───────────────────────┘   └─────────────────────────┘   └────────────┬────────────┘  │
 │                                                                         │               │
 │  ┌───────────────────────────────────────────────────────────────────┐  │               │
-│  │ Resume Intelligence Layer                                         │◀─┘               │
+│  │ Resume & Intelligence Layer                                       │◀─┘               │
 │  │ (Identity Model, Strategy Curation, Fact Validator, Critic Engine)│                  │
 │  └───────────────────────────────────────────────────────────────────┘                  │
 └───────────────────────────────────────────────┬─────────────────────────────────────────┘
@@ -80,7 +89,7 @@
 │                                                                                         │
 │  ┌─────────────────────┐   ┌─────────────────────────┐   ┌───────────────────────────┐  │
 │  │  D3.js Career Graph │   │   Living Portfolio View │   │ Resume Intelligence View  │  │
-│  │  (Force Simulation) │   │  (Artifacts, Progress)  │   │ (5 Personalities, Drawer) │  │
+│  │  (Force Simulation) │   │  (Credentials, Skim Mode│   │ (5 Styles, AI Polish)     │  │
 │  └─────────────────────┘   └─────────────────────────┘   └───────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -96,81 +105,103 @@
 
 ---
 
-### Backend Setup (FastAPI)
+### 1. Backend Setup (FastAPI)
 
-1. Navigate to the root directory and activate the Python virtual environment:
-   ```bash
-   # Windows PowerShell
-   .\backend\.venv\Scripts\Activate.ps1
+```bash
+cd backend
+python -m venv .venv
 
-   # Linux / macOS
-   source backend/.venv/bin/activate
-   ```
+# On Windows (PowerShell):
+.\.venv\Scripts\Activate.ps1
 
-2. Install dependencies:
-   ```bash
-   pip install -r backend/requirements.txt
-   ```
+# On macOS/Linux:
+source .venv/bin/activate
 
-3. Run the development backend server:
-   ```bash
-   python -m uvicorn backend.app.main:app --reload --port 8000
-   ```
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the backend server
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+The API will be live at `http://127.0.0.1:8000` with interactive Swagger docs at `http://127.0.0.1:8000/docs`.
 
 ---
 
-### Frontend Setup (Next.js)
+### 2. Frontend Setup (Next.js 16 + React 19)
 
-1. Navigate to the `frontend/` directory:
-   ```bash
-   cd frontend
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the Next.js development server:
-   ```bash
-   npm run dev
-   ```
-
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## 🧪 Running Test Suites
-
-### Backend Tests (Pytest)
-```bash
-# 15/15 tests passing
-.\backend\.venv\Scripts\python.exe -m pytest backend/tests/test_api.py -v
-```
-
-### Frontend Tests (Vitest)
-```bash
-# 37/37 tests passing
-cd frontend
-npm test
-```
-
-### Production Build & Typecheck
 ```bash
 cd frontend
-npx tsc --noEmit
-npm run build
+
+# Install dependencies
+npm install
+
+# Run the development server
+npm run dev
+```
+
+Open `http://localhost:3000` in your browser.
+
+---
+
+### 3. Running the CLI Tool
+
+```bash
+cd backend
+
+# View profile overview
+python cli.py profile
+
+# List ideas and thought lineage
+python cli.py ideas list
+
+# Generate an ASCII resume for a role
+python cli.py resume generate --role "Backend Systems Engineer"
 ```
 
 ---
 
-## 🔒 Security & Anti-Fabrication Safeguards
-- **OAuth CSRF Protection**: Strict state nonce verification with timestamped expiration.
-- **Repository URL Validation**: Enforces exact GitHub URL format and hostname checks.
-- **Rate-Limiting & Idempotency**: Sync rate limits per user ID and global SHA-256 caching for LLM analyses.
-- **Zero Fabricated Metrics**: Regex and database cross-validation prevents unauthorized synthetic percentage claims.
+## 🧪 Test Suites & Quality Assurance
+
+Career Graph is validated with comprehensive automated test suites across both layers:
+
+### Backend Pytest Suite (18/18 Tests Passing)
+```bash
+cd backend
+$env:PYTHONPATH="."
+.\.venv\Scripts\pytest tests/ -v
+```
+
+Tests verify:
+- JWT Bearer Authentication & 401 unauthenticated security rejection
+- Public portfolio identifier scoping & demo isolation
+- Idea maturity persistence, lineage notes, and auto-drafting
+- Dynamic 6-dimensional recruiter candidate critique
+- Full CRUD operations for Work Experience, Education, Certifications, and Social Links
+- Dual-variant vector resume generation & AI grammar improvements
+
+### Frontend Vitest Suite (38/38 Tests Passing)
+```bash
+cd frontend
+npx vitest run --pool=threads
+```
+
+Tests verify:
+- `ResumeView`: Block rendering, 5 layout switches, interactive editing, certifications, and AI polish
+- `PortfolioView`: Case studies, credentials management, proof links, and public link sharing
+- `CareerGraphView`: Force simulation, node drag, physics controls, and domain filtering
+- `CandidateIntelligence`: Role matching, evidence drawers, and breakdown scoring
+- `ReviewQueue`: Human-in-the-loop technology confirmation & rejection
+- `GitHubAuthModal`: PAT authentication & sync workflows
+
+---
+
+## 🛡️ Security & Privacy
+- **Strict Default Posture**: `ALLOW_ANONYMOUS_DEV_LOGIN` is disabled by default. Protected endpoints require valid JWT authentication.
+- **Public Portfolio Scoping**: Only exact verified usernames are publicly discoverable unless explicitly configured in demo mode.
+- **Evidence Verification**: Skills, claims, and resume bullets link directly to deterministic commit SHA references.
 
 ---
 
 ## 📄 License
-MIT License. Created for verifiable career acceleration.
+MIT License. Built for engineers seeking authentic, evidence-backed representation.

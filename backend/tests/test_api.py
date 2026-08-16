@@ -47,8 +47,15 @@ def client(db):
         finally:
             pass
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
+    test_client = TestClient(app)
+    # Authenticate client with mock token
+    res = test_client.post("/api/auth/mock")
+    if res.status_code == 200:
+        token = res.json().get("access_token")
+        test_client.headers["Authorization"] = f"Bearer {token}"
+    yield test_client
     app.dependency_overrides.clear()
+
 
 def test_init_db_and_roles(client, db):
     # Test that default roles were seeded on startup
@@ -447,8 +454,8 @@ def test_resume_ai_improve(client):
 
 
 def test_public_portfolio_endpoint(client):
-    # Retrieve public unauthenticated portfolio using default / demo alias
-    res_public = client.get("/api/portfolio/public/demo")
+    # Retrieve public unauthenticated portfolio using user's handle
+    res_public = client.get("/api/portfolio/public/madhav")
     assert res_public.status_code == 200
     data = res_public.json()
     assert "profile" in data
@@ -460,8 +467,9 @@ def test_public_portfolio_endpoint(client):
     assert "educations" in data
 
     # Test short public url alias /api/p/{identifier}
-    res_short = client.get("/api/p/default")
+    res_short = client.get("/api/p/madhav")
     assert res_short.status_code == 200
+
 
 
 def test_profile_details_and_career_history(client):
@@ -601,6 +609,89 @@ def test_resume_intelligence_engine_full_lifecycle(client, db):
     improved_rep = res_improve.json()
     assert improved_rep["layout_personality"] == "technical"
     assert len(improved_rep["blocks"]) >= 5
+
+
+def test_idea_maturity_persistence_and_lineage(client):
+    # 1. Create with maturity SPARK
+    create_res = client.post("/api/ideas", json={
+        "title": "Quantum Graph Optimizer",
+        "description": "Exploratory quantum state tensor representations",
+        "maturity": "SPARK",
+        "status": "EXPLORING",
+        "potential_impact": "HIGH"
+    })
+    assert create_res.status_code == 200
+    idea = create_res.json()
+    assert idea["maturity"] == "SPARK"
+    assert idea["potential_impact"] == "HIGH"
+    idea_id = idea["id"]
+
+    # 2. Update to MATURE and verify round-trip value
+    update_res = client.put(f"/api/ideas/{idea_id}", json={
+        "title": "Quantum Graph Optimizer",
+        "description": "Exploratory quantum state tensor representations - refined",
+        "maturity": "MATURE",
+        "status": "READY_TO_BUILD",
+        "potential_impact": "HIGH"
+    })
+    assert update_res.status_code == 200
+    updated = update_res.json()
+    assert updated["maturity"] == "MATURE"
+    assert updated["status"] == "READY_TO_BUILD"
+
+    # 3. Add thought lineage note
+    note_res = client.post(f"/api/ideas/{idea_id}/notes", json={
+        "note": "Refined the tensor representation into a concrete sparse Hamiltonian."
+    })
+    assert note_res.status_code == 200
+    with_notes = note_res.json()
+    assert len(with_notes["notes_json"]) == 1
+    assert "Hamiltonian" in with_notes["notes_json"][0]["note"]
+
+    # 4. Test auto-draft endpoint
+    draft_res = client.post("/api/ideas/auto-draft")
+    assert draft_res.status_code == 200
+    assert len(draft_res.json()["drafts"]) > 0
+
+
+def test_unauthenticated_request_rejected(db):
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+    app.dependency_overrides[get_db] = override_get_db
+    unauth_client = TestClient(app)
+    # No Authorization header
+    res = unauth_client.get("/api/profile")
+    assert res.status_code == 401
+
+
+def test_public_portfolio_security(client, db):
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+    app.dependency_overrides[get_db] = override_get_db
+    unauth = TestClient(app)
+    user = db.query(User).first()
+    assert user is not None
+
+    # With DEMO_MODE=False, /api/portfolio/public/me should return 404
+    res_me = unauth.get("/api/portfolio/public/me")
+    assert res_me.status_code == 404
+
+    # Non-existent user returns 404
+    res_rand = unauth.get("/api/portfolio/public/nonexistent_user_12345")
+    assert res_rand.status_code == 404
+
+    # Valid user returns 200
+    res_valid = unauth.get(f"/api/portfolio/public/{user.github_username}")
+    assert res_valid.status_code == 200
+    assert res_valid.json()["profile"]["github_username"] == user.github_username
+
+
 
 
 

@@ -145,10 +145,17 @@ class IdeaBase(BaseModel):
     description: Optional[str] = None
     status: str = "EXPLORING"
     maturity: str = "EARLY"
+    potential_impact: str = "MEDIUM"
     parent_project_id: Optional[UUID] = None
+    skills_json: List[str] = []
+    domains_json: List[str] = []
+    notes_json: List[Dict[str, Any]] = []
 
 class IdeaCreate(IdeaBase):
     pass
+
+class IdeaNoteCreate(BaseModel):
+    note: str
 
 class IdeaResponse(IdeaBase):
     id: UUID
@@ -156,6 +163,10 @@ class IdeaResponse(IdeaBase):
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+class IdeaAutoDraftResponse(BaseModel):
+    drafts: List[IdeaBase]
+
 
 # Evidence Schemas
 class EvidenceResponse(BaseModel):

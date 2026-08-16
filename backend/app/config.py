@@ -18,8 +18,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 1 week
 # Database config - default to local sqlite
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./career_graph.db")
 
-# Allow anonymous dev login: defaults to True in development unless explicitly disabled
-ALLOW_ANONYMOUS_DEV_LOGIN = os.getenv("ALLOW_ANONYMOUS_DEV_LOGIN", "true" if APP_ENV == "development" else "false").lower() in ("true", "1", "yes")
+# Allow anonymous dev login: defaults to False unconditionally unless explicitly enabled in environment
+ALLOW_ANONYMOUS_DEV_LOGIN = os.getenv("ALLOW_ANONYMOUS_DEV_LOGIN", "false").lower() in ("true", "1", "yes")
+
+# Single-tenant demo mode fallback (for demo environments only)
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("true", "1", "yes")
 
 # GitHub OAuth configs
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
@@ -29,3 +32,4 @@ GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:3000/au
 # LLM API keys
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+

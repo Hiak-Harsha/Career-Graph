@@ -151,13 +151,19 @@ class Idea(Base):
     title = Column(String(255), nullable=False)
     description = Column(Text)
     potential_impact = Column(String(50), default="MEDIUM")  # LOW, MEDIUM, HIGH
-    status = Column(String(50), default="RAW")  # RAW, REFINED, READY_TO_BUILD, CONVERTED
+    status = Column(String(50), default="EXPLORING")  # EXPLORING, RAW, REFINED, READY_TO_BUILD, CONVERTED
+    maturity = Column(String(50), default="EARLY")  # SPARK, EARLY, DEVELOPING, MATURE, CONVERTED
+    parent_project_id = Column(GUID, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     converted_to_project_id = Column(GUID, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    skills_json = Column(JSON, default=list)
+    domains_json = Column(JSON, default=list)
+    notes_json = Column(JSON, default=list)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     user = relationship("User", back_populates="ideas")
+
 
 
 class Skill(Base):

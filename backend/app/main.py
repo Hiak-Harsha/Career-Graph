@@ -19,7 +19,7 @@ from backend.app.models import (
 from backend.app.schemas import (
     UserResponse, UserUpdate, ProjectResponse, ProjectCreate,
     SkillResponse, DomainResponse,
-    IdeaResponse, IdeaCreate, PortfolioResponse, ResumeResponse, ResumeSaveRequest,
+    IdeaResponse, IdeaCreate, IdeaNoteCreate, IdeaAutoDraftResponse, PortfolioResponse, ResumeResponse, ResumeSaveRequest,
     WorkExperienceCreate, WorkExperienceResponse,
     EducationCreate, EducationResponse,
     CertificationCreate, CertificationResponse,
@@ -35,7 +35,8 @@ from backend.app.schemas import (
     ImproveRepresentationRequest
 )
 from backend.app.auth import get_current_user, create_access_token, exchange_github_code, encrypt_token, decrypt_token
-from backend.app.config import APP_ENV, OPENAI_API_KEY, ANTHROPIC_API_KEY
+from backend.app.config import APP_ENV, OPENAI_API_KEY, ANTHROPIC_API_KEY, DEMO_MODE
+
 from backend.app.analyzer import (
     fetch_github_repos,
     fetch_github_repo_details,
@@ -407,7 +408,7 @@ def get_public_portfolio(identifier: str, db: Session = Depends(get_db)):
         except Exception:
             pass
     
-    if not user:
+    if not user and DEMO_MODE:
         if identifier in ("demo", "default", "me"):
             user = db.query(User).first()
             
@@ -415,6 +416,7 @@ def get_public_portfolio(identifier: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Public portfolio not found for identifier.")
         
     return build_portfolio_payload(user, db)
+
 
 
 # --- Structured Profile Details Endpoints ---
@@ -964,7 +966,13 @@ def ai_improve_resume_content(req: AIImproveRequest, current_user: User = Depend
         if any(clean_text.lower().startswith(p) for p in active_prefixes):
             improved = f"{clean_text[0].upper() + clean_text[1:]} to ensure reliable system execution and high code maintainability."
         else:
-            improved = f"Architected and deployed solution for {clean_text.lower()} to ensure robust execution and system reliability."
+            import re
+            cleaned_clause = re.sub(r'^(wrote|writing|created|creating|built|building|coded|coding|added|adding|implemented|implementing)\s+', '', clean_text, flags=re.IGNORECASE).strip()
+            if cleaned_clause:
+                improved = f"Architected and deployed solution for {cleaned_clause} to ensure robust execution and system reliability."
+            else:
+                improved = f"Architected and deployed {clean_text.lower()} to ensure robust execution and system reliability."
+
             
         suggestions = [
             "Add verified project metrics if backed by your evidence (e.g., requests/sec, latency, data volume)",
@@ -1390,53 +1398,121 @@ def critique_resume_representation(
     identity = compute_candidate_professional_identity(current_user, db)
     projects = db.query(Project).filter(Project.user_id == current_user.id).all()
     domain_progress = db.query(DomainProgress).filter(DomainProgress.user_id == current_user.id).all()
-    
+    skill_progress = db.query(SkillProgress).filter(SkillProgress.user_id == current_user.id).all()
+    total_claims = db.query(Claim).filter(Claim.user_id == current_user.id).all()
+    confirmed_claims = [c for c in total_claims if c.status == "user_confirmed"]
+
+    def get_rating(score: int) -> str:
+        if score >= 80:
+            return "Strong"
+        elif score >= 50:
+            return "Moderate"
+        else:
+            return "Needs Work"
+
+    # 1. Role Relevance
+    role_words = set(req.target_role.lower().replace("/", " ").replace("-", " ").split())
+    matching_domains = [dp for dp in domain_progress if any(w in dp.domain.name.lower() for w in role_words)]
+    matching_skills = [sp for sp in skill_progress if any(w in sp.skill.name.lower() for w in role_words)]
+    rel_match_count = len(matching_domains) + len(matching_skills)
+    relevance_score = min(100, max(20, rel_match_count * 25 + (35 if len(projects) > 0 else 10)))
+    relevance_rating = get_rating(relevance_score)
+
+    # 2. Evidence Coverage
+    if total_claims:
+        evidence_score = int((len(confirmed_claims) / len(total_claims)) * 100)
+    else:
+        evidence_score = 40 if projects else 15
+    evidence_rating = get_rating(evidence_score)
+
+    # 3. Differentiation
+    diff_score = min(100, max(20, len(identity.primary_domains) * 20 + len(identity.emerging_domains) * 15 + len(projects) * 10))
+    diff_rating = get_rating(diff_score)
+
+    # 4. Technical Depth
+    sp_scores = [sp.depth_score for sp in skill_progress if sp.evidence_count > 0]
+    dp_scores = [dp.depth_score for dp in domain_progress if dp.exposure_score > 0]
+    all_depths = sp_scores + dp_scores
+    avg_depth = (sum(all_depths) / len(all_depths)) if all_depths else (0.2 if projects else 0.05)
+    tech_depth_score = min(100, max(15, int(avg_depth * 100)))
+    tech_depth_rating = get_rating(tech_depth_score)
+
+    # 5. Clarity & Scannability
+    clarity_score = 20
+    if current_user.headline:
+        clarity_score += 20
+    if projects:
+        clarity_score += 30
+    if confirmed_claims:
+        clarity_score += 30
+    clarity_score = min(100, clarity_score)
+    clarity_rating = get_rating(clarity_score)
+
+    # 6. Claim Verification
+    if total_claims:
+        claim_verif_score = int((len(confirmed_claims) / len(total_claims)) * 100)
+    else:
+        claim_verif_score = 30 if projects else 10
+    claim_verif_rating = get_rating(claim_verif_score)
+
     dimensions = [
         ReadinessDimension(
             dimension="Role Relevance",
-            rating="Strong",
-            score=95,
-            insight=f"Positioning and highlighted work directly align with {req.target_role} competencies."
+            rating=relevance_rating,
+            score=relevance_score,
+            insight=f"Positioning and highlighted work show {relevance_rating.lower()} alignment with {req.target_role} competencies."
         ),
         ReadinessDimension(
             dimension="Evidence Coverage",
-            rating="Strong",
-            score=100,
-            insight=f"All {identity.total_verified_claims} core claims have verifiable GitHub proof chains."
+            rating=evidence_rating,
+            score=evidence_score,
+            insight=f"{len(confirmed_claims)} of {len(total_claims)} core claims have verifiable GitHub proof chains." if total_claims else "Add projects to establish verifiable proof chains."
         ),
         ReadinessDimension(
             dimension="Differentiation",
-            rating="Strong",
-            score=90,
-            insight="Communicates distinct engineering archetype (AI Systems & Algorithmic Engineering) over generic buzzwords."
+            rating=diff_rating,
+            score=diff_score,
+            insight=f"Communicates {identity.project_style} with {len(identity.primary_domains)} primary domain specializations."
         ),
+
         ReadinessDimension(
             dimension="Technical Depth",
-            rating="Strong",
-            score=92,
-            insight="Presents evidence-backed domain capability clusters with verifiable project counts."
+            rating=tech_depth_rating,
+            score=tech_depth_score,
+            insight=f"Presents capability clusters with an average computed depth of {tech_depth_score}%."
         ),
         ReadinessDimension(
             dimension="Clarity & Scannability",
-            rating="Strong",
-            score=94,
-            insight="Follows strict visual hierarchy designed for 10-second recruiter scanning."
+            rating=clarity_rating,
+            score=clarity_score,
+            insight=f"Visual hierarchy scored {clarity_score}% for 10-second recruiter scanning."
         ),
         ReadinessDimension(
             dimension="Claim Verification",
-            rating="Strong",
-            score=100,
-            insight="Zero fabricated percentage metrics. 100% empirical evidence backing."
+            rating=claim_verif_rating,
+            score=claim_verif_score,
+            insight=f"{claim_verif_score}% empirical evidence backing across evaluated claims."
         )
     ]
-    
+
+    avg_composite = (relevance_score + evidence_score + diff_score + tech_depth_score + clarity_score + claim_verif_score) // 6
+    if avg_composite >= 80:
+        overall_label = "Strong"
+    elif avg_composite >= 65:
+        overall_label = "Proficient"
+    elif avg_composite >= 45:
+        overall_label = "Developing"
+    else:
+        overall_label = "Needs Work"
+
+    primary_domain_name = identity.primary_domains[0] if identity.primary_domains else "Software Engineering"
     attention = {
-        "0_to_3s": f"Who is this candidate? — {current_user.name}: {req.target_role.upper()} with primary depth in {identity.primary_domains[0]}.",
-        "3_to_8s": f"What are they good at? — Professional Signature: {', '.join(identity.primary_domains[:3])} with {identity.strong_capabilities[0]} capability.",
+        "0_to_3s": f"Who is this candidate? — {current_user.name}: {req.target_role.upper()} with primary depth in {primary_domain_name}.",
+        "3_to_8s": f"What are they good at? — Professional Signature: {', '.join(identity.primary_domains[:3]) or 'Core Systems'}.",
         "8_to_18s": f"What have they actually built? — {len(projects)} repositories with verified commits and claims.",
         "18_to_30s": f"Where are they going? — Current Trajectory: {identity.current_trajectory}"
     }
-    
+
     gaps = []
     if any("ML" in d.domain.name or "AI" in d.domain.name for d in domain_progress) and "ml" not in req.target_role.lower():
         gaps.append(f"Your Career Graph shows substantial AI/ML depth ({identity.total_verified_claims} claims), which is currently downplayed for this role.")
@@ -1444,20 +1520,21 @@ def critique_resume_representation(
         gaps.append(f"Your emerging momentum in '{identity.emerging_domains[0]}' represents a high-growth horizon that could strengthen technical differentiation.")
     if not gaps:
         gaps.append("Your career graph reflects high alignment with zero critical evidence gaps.")
-        
+
     improvements = [
         "Foreground verified proof links in Selected Work for fast recruiter verification",
         f"Ensure current trajectory highlights near-term interest in {identity.emerging_domains[0] if identity.emerging_domains else 'scalable systems'}"
     ]
-    
+
     return ResumeCritiqueResponse(
         target_role=req.target_role,
         readiness_dimensions=dimensions,
-        overall_readiness="Strong",
+        overall_readiness=overall_label,
         recruiter_attention_hierarchy=attention,
         fails_to_communicate_gaps=gaps,
         recommended_improvements=improvements
     )
+
 
 
 @app.post("/api/resume/improve-representation", response_model=ResumeBlockRepresentation)
@@ -1666,7 +1743,7 @@ def update_project_skill_status(
     return {"status": "success", "new_status": status_val}
 
 
-# --- Ideas & Projects Endpoints ---
+# --- Ideas & Projects Endpoints (Living Collective Entity) ---
 
 @app.post("/api/ideas", response_model=IdeaResponse)
 def create_idea(idea: IdeaCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1675,7 +1752,12 @@ def create_idea(idea: IdeaCreate, current_user: User = Depends(get_current_user)
         title=idea.title,
         description=idea.description,
         status=idea.status,
-        potential_impact=idea.maturity
+        maturity=idea.maturity,
+        potential_impact=idea.potential_impact,
+        parent_project_id=idea.parent_project_id,
+        skills_json=idea.skills_json or [],
+        domains_json=idea.domains_json or [],
+        notes_json=idea.notes_json or []
     )
     db.add(new_idea)
     db.commit()
@@ -1691,10 +1773,90 @@ def update_idea(id: uuid.UUID, idea: IdeaCreate, current_user: User = Depends(ge
     db_idea.title = idea.title
     db_idea.description = idea.description
     db_idea.status = idea.status
-    db_idea.potential_impact = idea.maturity
+    db_idea.maturity = idea.maturity
+    db_idea.potential_impact = idea.potential_impact
+    db_idea.parent_project_id = idea.parent_project_id
+    if idea.skills_json is not None:
+        db_idea.skills_json = idea.skills_json
+    if idea.domains_json is not None:
+        db_idea.domains_json = idea.domains_json
+    if idea.notes_json is not None:
+        db_idea.notes_json = idea.notes_json
     db.commit()
     db.refresh(db_idea)
     return db_idea
+
+
+@app.post("/api/ideas/{id}/notes", response_model=IdeaResponse)
+def add_idea_note(
+    id: uuid.UUID,
+    payload: IdeaNoteCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Appends an incremental thought note into the idea's living lineage history."""
+    db_idea = db.query(Idea).filter(Idea.id == id, Idea.user_id == current_user.id).first()
+    if not db_idea:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    
+    current_notes = list(db_idea.notes_json or [])
+    new_note = {
+        "id": str(uuid.uuid4()),
+        "note": payload.note,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    current_notes.append(new_note)
+    db_idea.notes_json = current_notes
+    db.commit()
+    db.refresh(db_idea)
+    return db_idea
+
+
+@app.post("/api/ideas/auto-draft")
+def auto_draft_ideas_from_activity(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Senses candidate's emerging domains and trajectories to auto-draft intelligent project concepts."""
+    identity = compute_candidate_professional_identity(current_user, db)
+    emerging = identity.emerging_domains
+    primary = identity.primary_domains
+    
+    drafts = []
+    if emerging:
+        target_domain = emerging[0]
+        drafts.append({
+            "title": f"Next-Gen {target_domain} Autonomous Pipeline",
+            "description": f"Exploring advanced architectures in {target_domain} to bridge verified depth with emerging industry requirements.",
+            "maturity": "SPARK",
+            "status": "EXPLORING",
+            "potential_impact": "HIGH",
+            "domains_json": [target_domain],
+            "skills_json": identity.strong_capabilities[:3]
+        })
+    if primary:
+        primary_domain = primary[0]
+        drafts.append({
+            "title": f"Distributed Benchmark Suite for {primary_domain}",
+            "description": f"Empirical evaluation engine measuring throughput, latency, and fault tolerance across {primary_domain} components.",
+            "maturity": "EARLY",
+            "status": "EXPLORING",
+            "potential_impact": "MEDIUM",
+            "domains_json": [primary_domain],
+            "skills_json": identity.strong_capabilities[:2]
+        })
+    if not drafts:
+        drafts.append({
+            "title": "Full-Stack System Observability & Telemetry Framework",
+            "description": "Unified metrics aggregator and trace visualizer built with modern typed stacks.",
+            "maturity": "SPARK",
+            "status": "EXPLORING",
+            "potential_impact": "MEDIUM",
+            "domains_json": ["Systems & Architecture"],
+            "skills_json": ["Python", "FastAPI"]
+        })
+        
+    return {"drafts": drafts}
 
 
 @app.delete("/api/ideas/{id}")
@@ -1705,3 +1867,4 @@ def delete_idea(id: uuid.UUID, current_user: User = Depends(get_current_user), d
     db.delete(db_idea)
     db.commit()
     return {"status": "deleted"}
+

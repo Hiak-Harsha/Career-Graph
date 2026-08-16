@@ -335,6 +335,89 @@ export interface ResumeStrategy {
   role_alignment_score: number;
 }
 
+export interface IdentityBlockPayload {
+  name?: string;
+  headline?: string;
+  email?: string;
+  location?: string;
+  github?: string;
+}
+
+export interface SignatureBlockPayload {
+  nodes?: DomainSignatureNode[];
+  edges?: DomainSignatureEdge[];
+  project_style?: string;
+}
+
+export interface PositioningBlockPayload {
+  statement?: string;
+  evidence_strength?: string;
+}
+
+export interface EvidenceClaimItem {
+  id?: string;
+  claim: string;
+  confidence?: number;
+  type?: string;
+}
+
+export interface SelectedWorkProject {
+  id?: string;
+  title: string;
+  description: string;
+  technologies?: string[];
+  evidence_claims?: EvidenceClaimItem[];
+}
+
+export interface SelectedWorkBlockPayload {
+  projects?: SelectedWorkProject[];
+}
+
+export interface TechnicalDepthCluster {
+  domain: string;
+  capabilities: string;
+  evidence_note?: string;
+}
+
+export interface TechnicalDepthBlockPayload {
+  clusters?: TechnicalDepthCluster[];
+}
+
+export interface TrajectoryBlockPayload {
+  trajectory_text?: string;
+  next_horizons?: string[];
+}
+
+export interface ExperienceBlockPayload {
+  experiences?: Array<{
+    company: string;
+    role: string;
+    start_date: string;
+    end_date: string;
+    description?: string;
+    bullets?: string[];
+  }>;
+}
+
+export interface EducationBlockPayload {
+  educations?: Array<{
+    institution: string;
+    degree: string;
+    field_of_study?: string;
+    start_year?: string;
+    end_year?: string;
+  }>;
+}
+
+export interface CertificationsBlockPayload {
+  certifications?: Array<{
+    name: string;
+    issuer: string;
+    issue_date?: string;
+    credential_url?: string;
+  }>;
+}
+
 export interface ResumeBlockItem {
   block_type:
     | "identity"
@@ -351,6 +434,7 @@ export interface ResumeBlockItem {
   order: number;
   content_payload: Record<string, any>;
 }
+
 
 export interface ResumeBlockRepresentation {
   target_role: string;

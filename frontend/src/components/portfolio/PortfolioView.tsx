@@ -19,11 +19,14 @@ import { GithubIcon } from "../ui/icons/GithubIcon";
 import { ProblemSolvingProfile } from "../career/ProblemSolvingProfile";
 import { SkillProgressView } from "../skills/SkillProgressView";
 import { EvidenceDrawer } from "../evidence/EvidenceDrawer";
+import { ProfileEditModal } from "../profile/ProfileEditModal";
+import { Edit3 } from "lucide-react";
 
 interface PortfolioViewProps {
   portfolioData: PortfolioData | null;
   loading: boolean;
   onOpenProjectEvidence?: (project: Project) => void;
+  onRefresh?: () => void;
   isPublic?: boolean;
 }
 
@@ -31,10 +34,13 @@ export function PortfolioView({
   portfolioData,
   loading,
   onOpenProjectEvidence,
+  onRefresh,
   isPublic = false,
 }: PortfolioViewProps) {
   const [copied, setCopied] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
 
   if (loading && !portfolioData) {
     return (
@@ -157,12 +163,26 @@ export function PortfolioView({
             )}
           </div>
 
-          <button type="button" className={styles.shareBtn} onClick={handleShare}>
-            {copied ? <Check size={14} /> : <Share2 size={14} />}
-            <span>{copied ? "Public Link Copied!" : isPublic ? "Share Public Link" : "Share Living Portfolio"}</span>
-          </button>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            {!isPublic && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ fontSize: "0.85rem", padding: "0.45rem 0.8rem", gap: "0.35rem" }}
+                onClick={() => setEditModalOpen(true)}
+              >
+                <Edit3 size={13} />
+                <span>Edit Credentials</span>
+              </button>
+            )}
+            <button type="button" className={styles.shareBtn} onClick={handleShare}>
+              {copied ? <Check size={14} /> : <Share2 size={14} />}
+              <span>{copied ? "Public Link Copied!" : isPublic ? "Share Public Link" : "Share Living Portfolio"}</span>
+            </button>
+          </div>
         </div>
       </header>
+
 
       {/* Verified Projects & Engineering Case Studies */}
       <section className={styles.section}>
@@ -359,6 +379,19 @@ export function PortfolioView({
       {selectedClaim && (
         <EvidenceDrawer claim={selectedClaim} onClose={() => setSelectedClaim(null)} />
       )}
+
+      {/* Career Credentials & History Editor Modal */}
+      {editModalOpen && (
+        <ProfileEditModal
+          initialWorkExperiences={work_experiences}
+          initialEducations={educations}
+          initialCertifications={certifications}
+          initialSocialLinks={social_links}
+          onClose={() => setEditModalOpen(false)}
+          onRefresh={onRefresh}
+        />
+      )}
     </div>
   );
 }
+

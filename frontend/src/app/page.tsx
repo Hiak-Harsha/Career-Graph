@@ -385,12 +385,14 @@ export default function CareerGraphApp() {
                     social_links: socialLinks,
                   }}
                   loading={loading}
+                  onRefresh={refresh}
                   onOpenProjectEvidence={(proj) => {
                     if (proj.claims && proj.claims.length > 0) {
                       setSelectedGraphClaim(proj.claims[0]);
                     }
                   }}
                 />
+
               )}
               {activeView === "graph" && (
                 <CareerGraphView

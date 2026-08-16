@@ -459,3 +459,82 @@
   line-height: 1.5;
   margin: 0.2rem 0 0 1.2rem;
 }
+
+/* Mobile & Touch Responsive Breakpoints */
+@media (max-width: 768px) {
+  .topBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.85rem;
+  }
+
+  .controlsGroup {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .roleSelectGroup {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .roleSelect {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .personalityGroup {
+    overflow-x: auto;
+    width: 100%;
+    justify-content: flex-start;
+    padding: 4px;
+  }
+
+  .personalityBtn {
+    min-height: 38px;
+    padding: 0.4rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  .actionsGroup {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .paper {
+    padding: 1.5rem 1.25rem;
+    border-radius: 8px;
+  }
+
+  .candidateName {
+    font-size: 1.6rem;
+  }
+
+  .contactRow {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .inspectBtn {
+    min-height: 36px;
+    padding: 0.35rem 0.6rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .inspectBtn,
+  .personalityBtn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .inspectBtn {
+    opacity: 1 !important;
+  }
+}
+

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ResumeView } from "./ResumeView";
 import type { ResumeData } from "../../types";
@@ -52,6 +52,15 @@ const mockBlockRep = {
       },
     },
     {
+      block_type: "positioning",
+      title: "Positioning",
+      order: 2,
+      content_payload: {
+        statement: "AI/ML engineer focused on intelligent systems with strong algorithmic foundations.",
+        evidence_strength: "High",
+      },
+    },
+    {
       block_type: "selected_work",
       title: "Selected Work",
       order: 4,
@@ -88,6 +97,20 @@ const mockBlockRep = {
         ],
       },
     },
+    {
+      block_type: "certifications",
+      title: "Certifications",
+      order: 9,
+      content_payload: {
+        certifications: [
+          {
+            name: "Deep Learning Specialization",
+            issuer: "DeepLearning.AI",
+            issue_date: "2025",
+          },
+        ],
+      },
+    },
   ],
 };
 
@@ -99,36 +122,85 @@ describe("ResumeView Component", () => {
     } as unknown as Response);
   });
 
-  it("renders resume candidate identity, verified badge, and selected work", async () => {
-    render(<ResumeView resumeData={mockResume} initialRole="AI / ML Engineer" />);
+  it("renders resume candidate identity, verified badge, selected work, and certifications", async () => {
+    await act(async () => {
+      render(<ResumeView resumeData={mockResume} initialRole="AI / ML Engineer" />);
+    });
 
     expect(await screen.findByText("Alex Rivera")).toBeInTheDocument();
     expect(screen.getByText(/Verified Career Graph/i)).toBeInTheDocument();
     expect(await screen.findByText("Core Platform")).toBeInTheDocument();
+    expect(await screen.findByText("Deep Learning Specialization")).toBeInTheDocument();
   });
 
-  it("switches visual personality layout", () => {
-    render(<ResumeView resumeData={mockResume} initialRole="AI / ML Engineer" />);
+  it("switches visual personality layout", async () => {
+    await act(async () => {
+      render(<ResumeView resumeData={mockResume} initialRole="AI / ML Engineer" />);
+    });
+    await screen.findByText("Alex Rivera");
 
     const techBtn = screen.getByRole("button", { name: "Technical" });
-    fireEvent.click(techBtn);
+    await act(async () => {
+      fireEvent.click(techBtn);
+    });
 
-    expect(techBtn).toHaveClass("personalityBtnActive");
+    await waitFor(() => {
+      expect(techBtn).toHaveClass("personalityBtnActive");
+    });
   });
 
-  it("calls onRoleChange when role dropdown value changes", () => {
+  it("calls onRoleChange when role dropdown value changes", async () => {
     const handleRoleChange = vi.fn();
-    render(
-      <ResumeView
-        resumeData={mockResume}
-        initialRole="AI / ML Engineer"
-        onRoleChange={handleRoleChange}
-      />
-    );
+    await act(async () => {
+      render(
+        <ResumeView
+          resumeData={mockResume}
+          initialRole="AI / ML Engineer"
+          onRoleChange={handleRoleChange}
+        />
+      );
+    });
+    await screen.findByText("Alex Rivera");
 
     const select = screen.getByLabelText(/Select target role/i);
-    fireEvent.change(select, { target: { value: "Backend Systems Engineer" } });
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "Backend Systems Engineer" } });
+    });
 
-    expect(handleRoleChange).toHaveBeenCalledWith("Backend Systems Engineer");
+    await waitFor(() => {
+      expect(handleRoleChange).toHaveBeenCalledWith("Backend Systems Engineer");
+    });
+  });
+
+  it("toggles edit mode and calls onSave when save button is clicked", async () => {
+    const handleSave = vi.fn().mockResolvedValue({ status: "success" });
+    await act(async () => {
+      render(
+        <ResumeView
+          resumeData={mockResume}
+          initialRole="AI / ML Engineer"
+          onSave={handleSave}
+        />
+      );
+    });
+    await screen.findByText("Alex Rivera");
+
+    const editBtn = screen.getByRole("button", { name: /Edit Resume/i });
+    await act(async () => {
+      fireEvent.click(editBtn);
+    });
+
+    const saveBtn = await screen.findByRole("button", { name: /Save Changes/i });
+    await act(async () => {
+      fireEvent.click(saveBtn);
+    });
+
+    await waitFor(() => {
+      expect(handleSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_role: "AI / ML Engineer",
+        })
+      );
+    });
   });
 });

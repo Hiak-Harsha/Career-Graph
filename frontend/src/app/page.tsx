@@ -310,7 +310,14 @@ export default function CareerGraphApp() {
         pendingReviewCount={pendingReviewCount}
       />
 
-      <main className={styles.main} id="main-content">
+      <main
+        className={`${styles.main} ${
+          activeView === "graph" || activeView === "recruiter" || activeView === "portfolio"
+            ? styles.mainWide
+            : ""
+        }`}
+        id="main-content"
+      >
         {/* Banner messages */}
         {displayError && (
           <div className={styles.banner} data-type="error" role="alert">
@@ -468,6 +475,7 @@ export default function CareerGraphApp() {
           onClose={() => setGithubModalOpen(false)}
           onSuccess={(msg) => setLocalSuccess(msg)}
           onRefresh={refresh}
+          defaultUsername={profile?.github_username || ""}
         />
       )}
     </div>

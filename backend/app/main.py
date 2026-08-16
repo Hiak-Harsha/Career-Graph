@@ -162,13 +162,14 @@ sync_request_history: Dict[str, List[datetime]] = {}
 SYNC_RATE_LIMIT = 5
 SYNC_WINDOW_SECONDS = 60
 
+@app.post("/api/sync")
 @app.post("/api/sync/github")
 async def sync_github(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Sync repositories from the user's connected GitHub account."""
     if not current_user.github_access_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No GitHub account connected. Please authenticate via GitHub OAuth."
+            detail="No GitHub account connected. Please authenticate via Personal Access Token or OAuth."
         )
 
     # In-memory rate limiting check
@@ -185,19 +186,27 @@ async def sync_github(current_user: User = Depends(get_current_user), db: Sessio
     sync_request_history[user_id_str] = history
         
     raw_token = decrypt_token(current_user.github_access_token)
-    repos = await fetch_github_repos(raw_token)
+    repos = await fetch_github_repos(raw_token, current_user.github_username)
     
     synced_projects = []
     for repo in repos:
-        details = await fetch_github_repo_details(raw_token, current_user.github_username, repo["name"])
+        owner_name = current_user.github_username or repo.get("owner", {}).get("login")
+        details = await fetch_github_repo_details(raw_token, owner_name, repo["name"])
         proj = sync_github_project(db, current_user, repo, details)
-        synced_projects.append(proj.title)
+        title_str = (proj.title if proj else None) or repo.get("name") or "Repository"
+        synced_projects.append(title_str)
         
     update_domain_progress_scores(db, current_user.id)
     update_skill_progress_scores(db, current_user.id)
     save_career_snapshot(db, current_user.id)
     
-    return {"status": "success", "synced_projects": synced_projects}
+    return {
+        "status": "success",
+        "synced_projects": synced_projects,
+        "synced_repositories": len(synced_projects)
+    }
+
+
 
 
 @app.post("/api/sync/demo")

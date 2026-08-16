@@ -39,33 +39,43 @@ def calculate_sync_hash(readme: str, languages: Dict[str, Any], files: List[str]
     return hashlib.md5(raw_str.encode("utf-8")).hexdigest()
 
 
-async def fetch_github_repos(access_token: str) -> List[Dict[str, Any]]:
-    """Fetches user's public repositories from GitHub API."""
-    repos = []
-    url = "https://api.github.com/user/repos?type=owner&sort=updated"
+async def fetch_github_repos(access_token: str, username: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Fetches user's repositories from GitHub API using PAT or OAuth token."""
     headers = {
-        "Authorization": f"token {access_token}",
-        "Accept": "application/vnd.github.v3+json"
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "Career-Graph-App"
     }
     
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        # Try authenticated /user/repos
+        response = await client.get("https://api.github.com/user/repos?type=owner&sort=updated&per_page=100", headers=headers)
+        if response.status_code == 200:
+            return response.json()
+        
+        # If fine-grained PAT or public user repos needed and username provided:
+        if username:
+            user_url = f"https://api.github.com/users/{username}/repos?type=owner&sort=updated&per_page=100"
+            res_user = await client.get(user_url, headers=headers)
+            if res_user.status_code == 200:
+                return res_user.json()
+        
         if response.status_code == 401:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired GitHub credentials.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired GitHub Personal Access Token.")
         elif response.status_code == 403:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access to GitHub API was forbidden or rate limit exceeded.")
-        elif response.status_code != 200:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="GitHub API rate limit exceeded or access forbidden.")
+        else:
             raise HTTPException(status_code=response.status_code, detail=f"GitHub API error: {response.text}")
-        repos = response.json()
-    return repos
 
 
 async def fetch_github_repo_details(access_token: str, owner: str, repo_name: str) -> Dict[str, Any]:
     """Fetches specific details of a repository, including languages and README."""
     headers = {
-        "Authorization": f"token {access_token}",
-        "Accept": "application/vnd.github.v3+json"
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "Career-Graph-App"
     }
+
     
     async with httpx.AsyncClient() as client:
         # Fetch README
@@ -975,3 +985,5 @@ def sync_github_project(db: Session, user: User, repo_data: Dict[str, Any], deta
 
     # 6. Single atomic commit at the very end of the sync transaction!
     db.commit()
+    return project
+

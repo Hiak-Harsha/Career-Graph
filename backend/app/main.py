@@ -12,6 +12,7 @@ if _backend_dir not in sys.path:
 
 import math
 import json
+import re
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -629,21 +630,47 @@ def build_dynamic_resume_payload(current_user: User, role: str, db: Session, var
         
     scored_projects.sort(key=lambda x: x[0], reverse=True)
     
+    seen_bullet_texts: List[str] = []
+
+    def _is_similar_claim_text(s1: str, s2: str) -> bool:
+        w1 = set(re.sub(r"[^\w\s]", "", s1.lower()).split())
+        w2 = set(re.sub(r"[^\w\s]", "", s2.lower()).split())
+        if not w1 or not w2:
+            return False
+        overlap = len(w1.intersection(w2))
+        return (overlap / max(len(w1), len(w2))) >= 0.75
+
     resume_projects = []
     for _, p, reasons in scored_projects:
         claims_list = db.query(Claim).filter(
             Claim.project_id == p.id,
             Claim.status == "user_confirmed"
         ).all()
-        bullet_points = [c.claim for c in claims_list]
         
+        confirmed_skills = db.query(Skill).join(project_skills).filter(
+            project_skills.c.project_id == p.id,
+            project_skills.c.status == "user_confirmed"
+        ).all()
+        skills_str = ", ".join([s.name for s in confirmed_skills[:3]])
+        
+        raw_bullets = [c.claim for c in claims_list]
+        bullet_points: List[str] = []
+
+        for b in raw_bullets:
+            if not any(_is_similar_claim_text(b, prev) for prev in seen_bullet_texts):
+                bullet_points.append(b)
+                seen_bullet_texts.append(b)
+            else:
+                # Diversify duplicate text with project-specific language
+                alt_bullet = f"Engineered domain-specific solutions in {p.title} utilizing {skills_str or 'robust software patterns'}."
+                if not any(_is_similar_claim_text(alt_bullet, prev) for prev in seen_bullet_texts):
+                    bullet_points.append(alt_bullet)
+                    seen_bullet_texts.append(alt_bullet)
+
         if not bullet_points:
-            confirmed_skills = db.query(Skill).join(project_skills).filter(
-                project_skills.c.project_id == p.id,
-                project_skills.c.status == "user_confirmed"
-            ).all()
-            skills_str = ", ".join([s.name for s in confirmed_skills[:3]])
-            bullet_points = [f"Designed and deployed {p.title} to resolve technical complexities, utilizing {skills_str or 'advanced software systems'}."]
+            fallback_b = f"Designed and deployed {p.title} to resolve technical complexities, utilizing {skills_str or 'advanced software systems'}."
+            bullet_points.append(fallback_b)
+            seen_bullet_texts.append(fallback_b)
 
         evidence_links = []
         for claim in claims_list:
@@ -653,11 +680,6 @@ def build_dynamic_resume_payload(current_user: User, role: str, db: Session, var
                     "url": ev.source_url or "#",
                     "label": ev.source_identifier or "Verifiable Proof"
                 })
-
-        confirmed_skills = db.query(Skill).join(project_skills).filter(
-            project_skills.c.project_id == p.id,
-            project_skills.c.status == "user_confirmed"
-        ).all()
 
         resume_projects.append({
             "id": p.id,
@@ -674,10 +696,20 @@ def build_dynamic_resume_payload(current_user: User, role: str, db: Session, var
     all_skills_progress = db.query(SkillProgress).filter(SkillProgress.user_id == current_user.id).all()
     skills_list = [sp.skill.name for sp in sorted(all_skills_progress, key=lambda x: x.evidence_count, reverse=True)[:8]]
     
-    claims = [c.claim for c in db.query(Claim).filter(
+    # Select distinct top-level claims
+    all_user_claims = db.query(Claim).filter(
         Claim.user_id == current_user.id,
         Claim.status == "user_confirmed"
-    )[:4]]
+    ).all()
+    
+    distinct_claims: List[str] = []
+    for c in all_user_claims:
+        if not any(_is_similar_claim_text(c.claim, prev) for prev in distinct_claims):
+            distinct_claims.append(c.claim)
+        if len(distinct_claims) >= 4:
+            break
+            
+    claims = distinct_claims
 
     # Also load structured work experience and education
     work_exps = db.query(WorkExperience).filter(WorkExperience.user_id == current_user.id).order_by(WorkExperience.created_at.desc()).all()

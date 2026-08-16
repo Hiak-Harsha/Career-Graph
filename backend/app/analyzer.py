@@ -291,57 +291,71 @@ def analyze_project_anthropic(
 
 
 def fallback_heuristics_analyzer(repo_name: str, description: str, languages: Dict[str, Any], files: List[str]) -> Dict[str, Any]:
-    """Heuristic fallback analyzer if no API keys are provided."""
-    print("Using local fallback heuristics analyzer...")
+    """Heuristic fallback analyzer with project-specific dynamic claim generation and diverse wording."""
     detected_tech = list(languages.keys())
+    primary_lang = detected_tech[0] if detected_tech else "Python"
+    clean_name = repo_name.replace("-", " ").replace("_", " ").title()
     
     skills = []
     domains = []
     claims = []
-    patterns = ["iterative prototyping"]
-    complexity = 3.0
+    patterns = ["modular design", "iterative prototyping"]
+    complexity = 4.0
     status = "COMPLETED"
     
     file_str = " ".join(files).lower()
     desc_str = (description or "").lower()
     name_str = repo_name.lower()
     
-    if "model" in file_str or "train" in file_str or "dataset" in file_str or "tensorflow" in file_str or "torch" in file_str or "ai" in name_str or "ml" in name_str:
-        domains.append({"name": "Machine Learning", "confidence": 0.9, "relevance": 0.9})
+    # 1. Machine Learning / AI
+    if any(k in file_str or k in name_str or k in desc_str for k in ["model", "train", "dataset", "tensorflow", "torch", "ai", "ml", "neural", "nlp", "classifier", "fake"]):
+        domains.append({"name": "Machine Learning", "confidence": 0.9, "relevance": 0.95})
         skills.append({"name": "Machine Learning", "category": "CONCEPT", "relationship": "DEMONSTRATES"})
         skills.append({"name": "Model Evaluation", "category": "CONCEPT", "relationship": "USES"})
-        patterns.append("experimentation")
-        complexity = 6.5
+        patterns.append("statistical experimentation")
+        complexity = max(complexity, 6.8)
         claims.append({
-            "claim": f"Built a machine learning classification/prediction model for {repo_name}",
+            "claim": f"Trained and evaluated specialized predictive ML pipelines for {clean_name} using {primary_lang}",
             "claim_type": "TECHNICAL_ACHIEVEMENT",
-            "evidence_files": [f for f in files if "train" in f or "model" in f][:2]
+            "evidence_files": [f for f in files if any(k in f.lower() for k in ["train", "model", "eval", "data"])][:2]
         })
-    
-    if "api" in file_str or "controller" in file_str or "route" in file_str or "fastapi" in file_str or "app" in file_str or "web" in name_str:
-        domains.append({"name": "Web Development", "confidence": 0.85, "relevance": 0.85})
-        domains.append({"name": "Backend Development", "confidence": 0.8, "relevance": 0.8})
-        skills.append({"name": "API Development", "category": "CONCEPT", "relationship": "DEMONSTRATES"})
-        skills.append({"name": "Web Architectures", "category": "CONCEPT", "relationship": "USES"})
-        patterns.append("automation")
-        complexity = 5.0
-        claims.append({
-            "claim": "Designed and built RESTful web API routes and service logic",
-            "claim_type": "ARCHITECTURE",
-            "evidence_files": [f for f in files if "route" in f or "api" in f or "app" in f][:2]
-        })
-        
-    if "dijkstra" in file_str or "algorithm" in file_str or "sort" in file_str or "graph" in file_str or "nav" in name_str:
+
+    # 2. Algorithms / Data Structures / Computational Navigation
+    if any(k in file_str or k in name_str or k in desc_str for k in ["dijkstra", "algorithm", "sort", "graph", "nav", "tree", "search", "astar", "heuristic", "reasoning"]):
         domains.append({"name": "Algorithms / DSA", "confidence": 0.95, "relevance": 0.95})
         skills.append({"name": "Algorithm Design", "category": "CONCEPT", "relationship": "DEMONSTRATES"})
-        skills.append({"name": "Graph Algorithms", "category": "CONCEPT", "relationship": "DEMONSTRATES"})
-        patterns.append("graph modeling")
+        skills.append({"name": "Graph Traversal", "category": "CONCEPT", "relationship": "DEMONSTRATES"})
         patterns.append("algorithmic optimization")
-        complexity = 7.0
+        complexity = max(complexity, 7.2)
         claims.append({
-            "claim": "Implemented key algorithmic solvers (such as graphs or optimizations) with structured evaluations",
+            "claim": f"Designed and benchmarked graph search and pathfinding solvers in {clean_name}",
             "claim_type": "TECHNICAL_ACHIEVEMENT",
-            "evidence_files": [f for f in files if "alg" in f or "dijkstra" in f or "graph" in f][:2]
+            "evidence_files": [f for f in files if any(k in f.lower() for k in ["alg", "graph", "nav", "search", "node"])][:2]
+        })
+
+    # 3. Distributed Systems / Concurrency / Storage
+    if any(k in file_str or k in name_str or k in desc_str for k in ["raft", "paxos", "grpc", "cache", "redis", "kafka", "queue", "socket", "cluster", "distributed"]):
+        domains.append({"name": "Distributed Systems", "confidence": 0.92, "relevance": 0.92})
+        skills.append({"name": "Distributed Systems", "category": "CONCEPT", "relationship": "DEMONSTRATES"})
+        patterns.append("fault-tolerant design")
+        complexity = max(complexity, 8.0)
+        claims.append({
+            "claim": f"Engineered fault-tolerant state coordination and messaging infrastructure for {clean_name}",
+            "claim_type": "ARCHITECTURE",
+            "evidence_files": [f for f in files if any(k in f.lower() for k in ["raft", "cluster", "socket", "client", "node"])][:2]
+        })
+
+    # 4. Web / API / Backend Services (only if not already tagged with specialized domains or if explicitly an API)
+    if not claims or any(k in file_str or k in name_str for k in ["api", "controller", "route", "fastapi", "flask", "django", "server", "express", "backend"]):
+        domains.append({"name": "Backend Development", "confidence": 0.88, "relevance": 0.9})
+        skills.append({"name": "API Architecture", "category": "CONCEPT", "relationship": "DEMONSTRATES"})
+        skills.append({"name": "Service Logic", "category": "CONCEPT", "relationship": "USES"})
+        patterns.append("service orchestration")
+        complexity = max(complexity, 5.5)
+        claims.append({
+            "claim": f"Architected high-throughput service handlers and JSON API routing in {clean_name}",
+            "claim_type": "ARCHITECTURE",
+            "evidence_files": [f for f in files if any(k in f.lower() for k in ["route", "api", "server", "controller", "main", "app"])][:2]
         })
 
     if not domains:
@@ -350,7 +364,7 @@ def fallback_heuristics_analyzer(repo_name: str, description: str, languages: Di
         skills.append({"name": "Software Engineering", "category": "CONCEPT", "relationship": "USES"})
     if not claims:
         claims.append({
-            "claim": f"Created custom developer software project {repo_name}",
+            "claim": f"Implemented core module architecture and automated test harnesses for {clean_name}",
             "claim_type": "TECHNICAL_ACHIEVEMENT",
             "evidence_files": files[:2] if files else []
         })
@@ -364,7 +378,7 @@ def fallback_heuristics_analyzer(repo_name: str, description: str, languages: Di
         "technologies": detected_tech,
         "complexity_score": complexity,
         "status": status,
-        "problem_solving_patterns": patterns,
+        "problem_solving_patterns": list(set(patterns)),
         "claims": claims
     }
 

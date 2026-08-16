@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from backend.app.config import DATABASE_URL
 from backend.app.models import Base, Role
@@ -31,9 +31,35 @@ def get_db():
     finally:
         db.close()
 
+def _migrate_sqlite_columns():
+    """Ensure newly added columns exist in existing SQLite tables without dropping data."""
+    try:
+        with engine.connect() as conn:
+            # Check ideas table columns
+            cursor = conn.execute(text("PRAGMA table_info(ideas)"))
+            existing_idea_cols = {row[1] for row in cursor.fetchall()}
+            
+            if existing_idea_cols:
+                if "maturity" not in existing_idea_cols:
+                    conn.execute(text("ALTER TABLE ideas ADD COLUMN maturity VARCHAR(50) DEFAULT 'EARLY'"))
+                if "parent_project_id" not in existing_idea_cols:
+                    conn.execute(text("ALTER TABLE ideas ADD COLUMN parent_project_id VARCHAR(36)"))
+                if "skills_json" not in existing_idea_cols:
+                    conn.execute(text("ALTER TABLE ideas ADD COLUMN skills_json TEXT"))
+                if "domains_json" not in existing_idea_cols:
+                    conn.execute(text("ALTER TABLE ideas ADD COLUMN domains_json TEXT"))
+                if "notes_json" not in existing_idea_cols:
+                    conn.execute(text("ALTER TABLE ideas ADD COLUMN notes_json TEXT"))
+                conn.commit()
+    except Exception as e:
+        print(f"Notice: SQLite column migration check: {e}")
+
 def init_db():
     # Create all tables in database if they do not exist
     Base.metadata.create_all(bind=engine)
+    
+    # Run column migrations for SQLite
+    _migrate_sqlite_columns()
     
     # Pre-populate default roles
     db = SessionLocal()

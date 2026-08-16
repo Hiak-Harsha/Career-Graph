@@ -1,9 +1,7 @@
-"use client";
-
-import { useEffect } from "react";
 import styles from "./DomainDrawer.module.css";
 import type { DomainProgress, Project } from "../../types";
 import { TrendingUp, TrendingDown, Minus, X } from "lucide-react";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 interface DomainDrawerProps {
   dp: DomainProgress;
@@ -56,13 +54,7 @@ function scoreToBar(score: number): number {
 }
 
 export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  const trapRef = useFocusTrap<HTMLElement>({ onEscape: onClose });
 
   // Collect all skills from projects in this domain
   const allSkills = Array.from(
@@ -79,8 +71,7 @@ export function DomainDrawer({ dp, projects, onClose }: DomainDrawerProps) {
   return (
     <>
       <div className="overlay animate-fade-in" onClick={onClose} aria-hidden="true" />
-
-      <aside className={`${styles.drawer} animate-slide-right`} aria-label={`${dp.domain.name} details`}>
+      <aside ref={trapRef} className={`${styles.drawer} animate-slide-right`} aria-label={`${dp.domain.name} details`}>
         {/* Header */}
         <div className={styles.header}>
           <div>

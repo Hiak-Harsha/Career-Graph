@@ -24,6 +24,8 @@ import {
   Loader2,
 } from "lucide-react";
 
+import { useFocusTrap } from "../../hooks/useFocusTrap";
+
 interface ResumeStrategyDrawerProps {
   targetRole: string;
   personality: ResumePersonality;
@@ -37,6 +39,7 @@ export function ResumeStrategyDrawer({
   onClose,
   onApplyImprovement,
 }: ResumeStrategyDrawerProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>({ onEscape: onClose });
   const [activeTab, setActiveTab] = useState<"identity" | "strategy" | "critique">("identity");
   const [identity, setIdentity] = useState<ProfessionalIdentity | null>(null);
   const [strategy, setStrategy] = useState<ResumeStrategy | null>(null);
@@ -45,45 +48,56 @@ export function ResumeStrategyDrawer({
   const [applyingGap, setApplyingGap] = useState(false);
   const [error, setError] = useState("");
 
-  const loadIntelligence = React.useCallback(async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const results = await Promise.allSettled([
-        apiFetch("/resume/identity").then((r) => r.json()),
-        apiFetch("/resume/strategy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ target_role: targetRole, layout_preference: personality }),
-        }).then((r) => r.json()),
-        apiFetch("/resume/critique", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ target_role: targetRole }),
-        }).then((r) => r.json()),
-      ]);
-
-      const [idResult, stratResult, critResult] = results;
-
-      if (idResult.status === "fulfilled") setIdentity(idResult.value);
-      if (stratResult.status === "fulfilled") setStrategy(stratResult.value);
-      if (critResult.status === "fulfilled") setCritique(critResult.value);
-
-      if (results.every((r) => r.status === "rejected")) {
-        const firstErr = (results[0] as PromiseRejectedResult).reason;
-        setError(firstErr instanceof Error ? firstErr.message : "Failed to load resume intelligence data.");
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load resume intelligence data.");
-    } finally {
-      setLoading(false);
-    }
-  }, [targetRole, personality]);
+  const [fetchTrigger, setFetchTrigger] = useState(0);
 
   useEffect(() => {
-    loadIntelligence();
-  }, [loadIntelligence]);
+    let isMounted = true;
+
+    Promise.allSettled([
+      apiFetch("/resume/identity").then((r) => r.json()),
+      apiFetch("/resume/strategy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_role: targetRole, layout_preference: personality }),
+      }).then((r) => r.json()),
+      apiFetch("/resume/critique", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_role: targetRole }),
+      }).then((r) => r.json()),
+    ])
+      .then((results) => {
+        if (!isMounted) return;
+
+        const [idResult, stratResult, critResult] = results;
+
+        if (idResult.status === "fulfilled") setIdentity(idResult.value);
+        if (stratResult.status === "fulfilled") setStrategy(stratResult.value);
+        if (critResult.status === "fulfilled") setCritique(critResult.value);
+
+        if (results.every((r) => r.status === "rejected")) {
+          const firstErr = (results[0] as PromiseRejectedResult).reason;
+          setError(firstErr instanceof Error ? firstErr.message : "Failed to load resume intelligence data.");
+        }
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (!isMounted) return;
+        setError(err instanceof Error ? err.message : "Failed to load resume intelligence data.");
+        setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [targetRole, personality, fetchTrigger]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setError("");
+    setFetchTrigger((prev) => prev + 1);
+  };
+
 
   const handleImproveRepresentation = async () => {
     if (!critique?.fails_to_communicate_gaps.length) return;
@@ -112,7 +126,7 @@ export function ResumeStrategyDrawer({
 
   return (
     <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
-      <div className={styles.drawer} onClick={(e) => e.stopPropagation()}>
+      <div ref={trapRef} className={styles.drawer} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className={styles.header}>
           <div>
@@ -163,7 +177,7 @@ export function ResumeStrategyDrawer({
           ) : error ? (
             <div className={styles.sectionCard} style={{ borderColor: "rgba(239, 68, 68, 0.3)", padding: "1.5rem", textAlign: "center" }}>
               <p style={{ color: "#f87171", fontSize: "0.88rem", marginBottom: "0.75rem" }}>{error}</p>
-              <button type="button" className="btn btn-secondary" onClick={() => loadIntelligence()} style={{ margin: "0 auto" }}>
+              <button type="button" className="btn btn-secondary" onClick={handleRetry} style={{ margin: "0 auto" }}>
                 <span>Retry Loading</span>
               </button>
             </div>

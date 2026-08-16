@@ -36,6 +36,31 @@ function getTrajectoryBadge(trajectory: string) {
   }
 }
 
+function getFreshnessIndicator(trajectory: string, evidenceCount: number) {
+  if (trajectory === "INCREASING" || evidenceCount >= 5) {
+    return (
+      <span className="badge badge-success" style={{ fontSize: "0.68rem", gap: "0.25rem" }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", display: "inline-block" }} />
+        Fresh (Active)
+      </span>
+    );
+  }
+  if (trajectory === "DECREASING") {
+    return (
+      <span className="badge badge-warning" style={{ fontSize: "0.68rem", gap: "0.25rem" }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#F59E0B", display: "inline-block" }} />
+        Decaying
+      </span>
+    );
+  }
+  return (
+    <span className="badge badge-neutral" style={{ fontSize: "0.68rem", gap: "0.25rem" }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#94A3B8", display: "inline-block" }} />
+      Maintained
+    </span>
+  );
+}
+
 export function SkillProgressView({ skillsProgress }: SkillProgressViewProps) {
   // Sort skills by depth_score or usage descending
   const sorted = [...skillsProgress].sort((a, b) => b.depth_score - a.depth_score);
@@ -45,7 +70,7 @@ export function SkillProgressView({ skillsProgress }: SkillProgressViewProps) {
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>Skill Progression</h1>
         <p className={styles.pageSubtitle}>
-          Evidence-backed mastery and growth trajectory across your codebase
+          Evidence-backed mastery, recency telemetry, and decay indicators across your codebase
         </p>
       </div>
 
@@ -65,9 +90,12 @@ export function SkillProgressView({ skillsProgress }: SkillProgressViewProps) {
               >
                 <div className={styles.skillHeader}>
                   <h3 className={styles.skillName}>{sp.skill.name}</h3>
-                  <span className={styles.skillLevelBadge}>
-                    {sp.current_level.charAt(0) + sp.current_level.slice(1).toLowerCase()}
-                  </span>
+                  <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                    {getFreshnessIndicator(sp.trajectory, sp.evidence_count)}
+                    <span className={styles.skillLevelBadge}>
+                      {sp.current_level.charAt(0) + sp.current_level.slice(1).toLowerCase()}
+                    </span>
+                  </div>
                 </div>
 
                 <div className={styles.progressSection}>

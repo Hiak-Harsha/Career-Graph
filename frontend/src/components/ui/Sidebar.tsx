@@ -21,6 +21,8 @@ import {
   X,
 } from "lucide-react";
 import { GithubIcon } from "./icons/GithubIcon";
+import { motion } from "framer-motion";
+import { staggerContainer, staggerItem } from "../../lib/motion";
 
 type NavItem = {
   id: string;
@@ -173,7 +175,13 @@ export function Sidebar({
         </div>
 
         {/* Navigation */}
-        <nav className={styles.nav} aria-label="Main navigation">
+        <motion.nav
+          className={styles.nav}
+          aria-label="Main navigation"
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+        >
           {NAV_SECTIONS.map((section, idx) => (
             <div key={idx} className={styles.navSection}>
               {section.label && (
@@ -182,9 +190,10 @@ export function Sidebar({
                 </span>
               )}
               {section.items.map(({ id, label, icon: Icon, showBadge }) => (
-                <button
+                <motion.button
                   key={id}
                   type="button"
+                  variants={staggerItem}
                   className={`${styles.navButton} ${
                     activeView === id ? styles.navActive : ""
                   }`}
@@ -196,11 +205,11 @@ export function Sidebar({
                   {showBadge && pendingReviewCount > 0 && (
                     <span className={styles.navBadge}>{pendingReviewCount}</span>
                   )}
-                </button>
+                </motion.button>
               ))}
             </div>
           ))}
-        </nav>
+        </motion.nav>
 
         {/* Footer actions */}
         <div className={styles.footer}>
@@ -233,3 +242,4 @@ export function Sidebar({
     </>
   );
 }
+

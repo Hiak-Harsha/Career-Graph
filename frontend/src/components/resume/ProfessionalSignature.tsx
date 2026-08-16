@@ -31,21 +31,30 @@ export function ProfessionalSignature({
       </div>
 
       <div className={styles.graphCanvas}>
-        {nodes.map((node, idx) => (
-          <React.Fragment key={node.id || node.name}>
-            <div className={styles.nodeCard}>
-              <span className={styles.nodeDot} />
-              <span className={styles.nodeName}>{node.name}</span>
-              <span className={styles.nodeLevel}>{node.level}</span>
-            </div>
-            {idx < nodes.length - 1 && (
-              <span className={styles.connector} aria-hidden="true">
-                <ArrowRight size={13} />
-              </span>
-            )}
-          </React.Fragment>
-        ))}
+        {nodes.map((node, idx) => {
+          const edge = edges.find(
+            (e) =>
+              (e.source === node.id && edges[idx]?.target) ||
+              (idx < nodes.length - 1 && e.target === nodes[idx + 1].id)
+          );
+
+          return (
+            <React.Fragment key={node.id || node.name}>
+              <div className={styles.nodeCard}>
+                <span className={styles.nodeDot} />
+                <span className={styles.nodeName}>{node.name}</span>
+                <span className={styles.nodeLevel}>{node.level}</span>
+              </div>
+              {idx < nodes.length - 1 && (
+                <span className={styles.connector} aria-hidden="true" title={edge?.relationship}>
+                  <ArrowRight size={13} />
+                </span>
+              )}
+            </React.Fragment>
+          );
+        })}
       </div>
     </div>
   );
 }
+

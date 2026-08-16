@@ -1,9 +1,7 @@
-"use client";
-
-import { useEffect } from "react";
 import styles from "./EvidenceDrawer.module.css";
 import type { Claim } from "../../types";
 import { ArrowDown, ExternalLink, X } from "lucide-react";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 interface EvidenceDrawerProps {
   claim: Claim;
@@ -20,13 +18,7 @@ const EVIDENCE_TYPE_LABEL: Record<string, string> = {
 };
 
 export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  const trapRef = useFocusTrap<HTMLElement>({ onEscape: onClose });
 
   // Derive project name from claim — best effort
   const projectName = "Project";
@@ -35,7 +27,7 @@ export function EvidenceDrawer({ claim, onClose }: EvidenceDrawerProps) {
     <>
       <div className="overlay animate-fade-in" onClick={onClose} aria-hidden="true" />
 
-      <aside className={`${styles.drawer} animate-slide-right`} aria-label="Evidence proof chain">
+      <aside ref={trapRef} className={`${styles.drawer} animate-slide-right`} aria-label="Evidence proof chain">
         <div className={styles.header}>
           <div>
             <p className={`section-label ${styles.headerLabel}`}>Verified Claim</p>

@@ -17,21 +17,22 @@
 - **Focus + Dim Neighborhood Isolation**: Clicking any node dims unrelated entities to 12% opacity, keeping the selected node and its direct 1st-degree connections 100% illuminated with thickened links and enhanced glows.
 - **Flowing Animated Edges**: Continuous animated dash patterns (`stroke-dashoffset`) convey electrical current and data telemetry between verified nodes instead of static lines.
 - **Growth Journey Replay ("Replay Your Journey")**: An interactive timeline player control that chronologically reconstructs the career graph step-by-step in the exact order projects and skills were built.
+- **Trajectory Diff Mode ("Before vs. Now")**: Interactive 6-month delta toggle highlighting newly created competencies and elevated domain depth with glowing green halos and `+NEW` indicators.
+- **Mobile Responsive List View Fallback**: Auto-adapting searchable card view below 480px with seamless canvas-to-list switching.
 - **Orbital Depth & Mastery Rings**: Visual depth scaling where mastered domains feature rotating orbital rings, skills scale with verified evidence items, and projects scale by architecture complexity.
 - **Cross-Domain Multi-Disciplinary Bridges**: Multi-tone linear gradient edges and glowing halos highlighting projects that bridge $\ge 2$ technical domains.
-- **Physics Tuning & Interactive Controls**: Zoom, pan, center reset, and domain/skill/project category filtering.
 
 ### 2. 🧠 Resume Intelligence Engine (Representation over Generation)
 - **Professional Identity Model**: Automatically computes primary domains, emerging horizons, evidence strength, research orientation, project style, and trajectory directly from your Career Graph.
 - **Interactive Inline Resume Editing & AI Polish**: Edit summary statements and bullet points in real-time with one-click AI polishing that normalizes action verbs and optimizes impact.
 - **Resume Strategy Engine**: Curates role-specific context for target positions (*AI / ML Engineer*, *Backend Systems Engineer*, *Research Engineer*, *Full Stack*) with high-signal positioning theses.
 - **Modular Block Representation**: Clean block-based architecture (`IdentityBlock`, `ProfessionalSignatureBlock`, `PositioningBlock`, `SelectedWorkBlock`, `TechnicalDepthBlock`, `CurrentTrajectoryBlock`, `ExperienceBlock`, `EducationBlock`, `CertificationsBlock`).
-- **5 Visual Layout Personalities**:
-  - `Modern`: Balanced, recruiter-friendly cards with clean hierarchy.
-  - `Technical`: Monospace architecture accents and engineering-focused badges.
-  - `Editorial`: Elegant serif typography, research framing, and classic dividers.
-  - `Research`: Methodology-focused with empirical proof callouts.
-  - `Executive`: Systems-impact and trajectory-first layout.
+- **5 Visual Layout Personalities with Custom Motion Signatures**:
+  - `Modern`: Balanced, recruiter-friendly cards with scale-up motion.
+  - `Technical`: Monospace architecture accents with terminal-snap slide transitions.
+  - `Editorial`: Elegant serif typography, research framing, and vertical drift animations.
+  - `Research`: Methodology-focused with empirical proof callouts and optical blur dissolves.
+  - `Executive`: Systems-impact and trajectory-first layout with accent bar sweeps.
 - **Dynamic Recruiter Critic & Gap Analysis**:
   - 10-second attention breakdown modeling what recruiters notice first.
   - Empirical 6-Dimensional Readiness Scores (*Role Relevance*, *Evidence Coverage*, *Differentiation*, *Technical Depth*, *Clarity & Scannability*, *Claim Verification*).
@@ -44,13 +45,14 @@
 - **Trajectory Auto-Drafter**: Auto-senses candidate graph momentum and emerging technical domains to draft new system concepts.
 
 ### 4. 🌐 Living Portfolio & Credentials Management
-- **Verified Technical Artifacts**: Showcase your work with complexity ratings, architecture tags, and repository links.
+- **Interactive Project Case Study Explorer**: Deep architectural narratives exploring Problem Statements & Goals, Key Technical Decisions, Empirically Verified Claims, and Retrospectives.
+- **Live GitHub Activity Heatmap**: Interactive commit density heatmap computed directly from verified repository artifacts.
+- **Skill Freshness & Decay Telemetry**: Visual indicators reflecting active maintenance vs. dormant competencies.
 - **Comprehensive Credentials Editor**: Built-in modal UI to add, edit, and delete Work Experiences, Educations, Certifications, and Social/Portfolio links with live cache synchronization.
 - **Problem-Solving Profile**: Analytical archetype detection based on confirmed skill usage patterns.
-- **Skill Progression Bars**: Real-time exposure, depth, activity, and recency tracking.
 - **Shareable Public Identity (`/p/[username]`)**:
   - Full living portfolio view with verified evidence badges.
-  - **15-Second Recruiter Fast Skim Mode** for quick executive evaluations.
+  - **15-Second Recruiter Fast Skim Mode** (`?mode=recruiter`) for quick executive evaluations.
 
 ### 5. 🎯 Recruiter Intelligence Match & Review Queue
 - **Role-Based Evaluation**: Compares confirmed capabilities against target criteria.

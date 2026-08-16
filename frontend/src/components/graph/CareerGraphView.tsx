@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from "react"
 import * as d3 from "d3";
 import styles from "./CareerGraphView.module.css";
 import type { Project, DomainProgress, SkillProgress } from "../../types";
-import { Plus, Minus, RotateCcw, Network, Play, Pause, SkipBack, SkipForward, History, X } from "lucide-react";
+import { Plus, Minus, RotateCcw, Network, Play, Pause, SkipBack, SkipForward, History, X, GitCompare, List, Layers, Search } from "lucide-react";
 
 export interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -17,6 +17,7 @@ export interface GraphNode extends d3.SimulationNodeDatum {
   level?: string;
   depthScore?: number;
   isCrossDomain?: boolean;
+  isRecent?: boolean;
   dateCreated?: Date;
 }
 
@@ -64,6 +65,15 @@ export function CareerGraphView({
   const [replayStep, setReplayStep] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState<1 | 2>(1);
+
+  // Trajectory Diff & View Mode States
+  const [isDiffMode, setIsDiffMode] = useState(false);
+  const [viewMode, setViewMode] = useState<"canvas" | "list">(() => {
+    if (typeof window === "undefined") return "canvas";
+    return window.innerWidth < 480 ? "list" : "canvas";
+  });
+  const [searchQuery, setSearchQuery] = useState("");
+
 
   const [tooltip, setTooltip] = useState<{
     visible: boolean;
@@ -264,7 +274,7 @@ export function CareerGraphView({
   // Active dataset considering activeFilter and Replay Step
   const activeDataset = useMemo(() => {
     let baseNodes = rawGraphData.nodes;
-    let baseLinks = rawGraphData.links;
+    const baseLinks = rawGraphData.links;
 
     // Apply Replay Filter if active
     if (isReplaying && milestones.length > 0) {
@@ -648,6 +658,17 @@ export function CareerGraphView({
         </div>
 
         <div className={styles.topActions}>
+          {/* Trajectory Diff Toggle (Direction 4) */}
+          <button
+            type="button"
+            className={`${styles.diffToggleBtn} ${isDiffMode ? styles.diffToggleBtnActive : ""}`}
+            onClick={() => setIsDiffMode(!isDiffMode)}
+            title="Toggle Trajectory Delta: 6 Months Ago vs. Now"
+          >
+            <GitCompare size={14} />
+            <span>{isDiffMode ? "Exit Trajectory Diff" : "Trajectory Diff (6m)"}</span>
+          </button>
+
           {/* Growth Replay Toggle */}
           <button
             type="button"
@@ -661,6 +682,17 @@ export function CareerGraphView({
           >
             <History size={15} />
             <span>{isReplaying ? "Exit Journey Replay" : "Replay Journey"}</span>
+          </button>
+
+          {/* View Mode Toggle (Canvas / Mobile List) */}
+          <button
+            type="button"
+            className={styles.mobileViewToggle}
+            onClick={() => setViewMode(viewMode === "canvas" ? "list" : "canvas")}
+            title="Toggle Graph Canvas vs. Mobile List View"
+          >
+            {viewMode === "canvas" ? <List size={14} /> : <Layers size={14} />}
+            <span>{viewMode === "canvas" ? "List View" : "Canvas Graph"}</span>
           </button>
 
           {/* Filter pills */}
@@ -690,6 +722,114 @@ export function CareerGraphView({
           <p className={styles.emptyDesc}>
             Connect your GitHub repositories or load demonstration data to generate your interactive career graph.
           </p>
+        </div>
+      ) : viewMode === "list" ? (
+        /* Mobile / Compact List View Fallback */
+        <div className={styles.mobileListView}>
+          <div className="input-group" style={{ marginBottom: "0.5rem" }}>
+            <span className="input-icon">
+              <Search size={14} />
+            </span>
+            <input
+              type="text"
+              className="input"
+              placeholder="Filter graph entities by name or skill..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          {/* Domains */}
+          {(activeFilter === "all" || activeFilter === "domains") && (
+            <div className={styles.mobileSection}>
+              <div className={styles.mobileSectionTitle}>
+                <span>Verified Domains ({domainProgress.length})</span>
+                {isDiffMode && <span className={styles.diffBadge}>▲ Delta Highlighted</span>}
+              </div>
+              <div className={styles.mobileCardGrid}>
+                {domainProgress
+                  .filter((d) => d.domain.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((dp) => (
+                    <div
+                      key={dp.id || dp.domain.name}
+                      className={styles.mobileCard}
+                      onClick={() => onSelectDomain?.(dp)}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className={styles.mobileCardInfo}>
+                        <span className={styles.mobileCardName}>{dp.domain.name}</span>
+                        <span className={styles.mobileCardSub}>
+                          Level: {dp.current_level} &middot; Score: {Math.round((dp.depth_score ?? 0.5) * 100)}%
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        {isDiffMode && <span className={styles.diffBadge}>▲ Active</span>}
+                        <span className="badge badge-neutral">Inspect &rarr;</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Projects */}
+          {(activeFilter === "all" || activeFilter === "projects") && (
+            <div className={styles.mobileSection}>
+              <div className={styles.mobileSectionTitle}>
+                <span>Evidence-Backed Projects ({projects.length})</span>
+              </div>
+              <div className={styles.mobileCardGrid}>
+                {projects
+                  .filter((p) => p.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((proj) => (
+                    <div
+                      key={proj.id || proj.title}
+                      className={styles.mobileCard}
+                      onClick={() => onSelectProject?.(proj)}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className={styles.mobileCardInfo}>
+                        <span className={styles.mobileCardName}>{proj.title}</span>
+                        <span className={styles.mobileCardSub}>
+                          Status: {proj.status} &middot; {proj.claims?.length ?? 0} claims &middot; {proj.skills?.slice(0, 3).map((s) => s.name).join(", ")}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        {isDiffMode && <span className={styles.diffBadge}>+RECENT</span>}
+                        <span className="badge badge-success">Inspect &rarr;</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Skills */}
+          {(activeFilter === "all" || activeFilter === "skills") && (
+            <div className={styles.mobileSection}>
+              <div className={styles.mobileSectionTitle}>
+                <span>Core Competencies & Skills ({skillsProgress.length})</span>
+              </div>
+              <div className={styles.mobileCardGrid}>
+                {skillsProgress
+                  .filter((s) => s.skill.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((sp) => (
+                    <div key={sp.id || sp.skill.name} className={styles.mobileCard}>
+                      <div className={styles.mobileCardInfo}>
+                        <span className={styles.mobileCardName}>{sp.skill.name}</span>
+                        <span className={styles.mobileCardSub}>
+                          Level: {sp.current_level} &middot; Verified Projects: {sp.evidence_count}
+                        </span>
+                      </div>
+                      <span className="badge badge-neutral">{sp.current_level}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className={styles.graphWrapper} ref={containerRef}>
@@ -763,6 +903,12 @@ export function CareerGraphView({
               <span className={`${styles.legendDot} ${styles.legendCrossDomain}`} />
               <span>Cross-Domain</span>
             </div>
+            {isDiffMode && (
+              <div className={styles.legendItem}>
+                <span className={styles.diffBadge}>+NEW</span>
+                <span>Delta</span>
+              </div>
+            )}
           </div>
 
           {/* Growth Journey Replay Player Bar (Direction 3) */}
@@ -881,3 +1027,4 @@ export function CareerGraphView({
     </div>
   );
 }
+

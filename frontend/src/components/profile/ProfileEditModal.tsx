@@ -5,6 +5,7 @@ import styles from "./ProfileEditModal.module.css";
 import type { WorkExperience, Education, Certification, SocialLink, UserProfile } from "../../types";
 import { apiFetch } from "../../config";
 import { X, Plus, Trash2, Briefcase, GraduationCap, Award, Link2, Loader2, Check, Shield } from "lucide-react";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 interface ProfileEditModalProps {
   initialProfile?: UserProfile;
@@ -27,7 +28,9 @@ export function ProfileEditModal({
   onClose,
   onRefresh,
 }: ProfileEditModalProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>({ onEscape: onClose });
   const [activeTab, setActiveTab] = useState<TabType>("experience");
+
   const [workExps, setWorkExps] = useState<WorkExperience[]>(initialWorkExperiences);
   const [educations, setEducations] = useState<Education[]>(initialEducations);
   const [certifications, setCertifications] = useState<Certification[]>(initialCertifications);
@@ -270,7 +273,7 @@ export function ProfileEditModal({
 
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div className={styles.modal}>
+      <div ref={trapRef} className={styles.modal}>
         {/* Header */}
         <div className={styles.header}>
           <h2 id="modal-title" className={styles.title}>

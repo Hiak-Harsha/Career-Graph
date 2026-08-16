@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import styles from "./PortfolioView.module.css";
 import type { PortfolioData, Project, Claim } from "../../types";
 import {
@@ -14,13 +14,17 @@ import {
   GraduationCap,
   Briefcase,
   ArrowUpRight,
+  Zap,
+  Edit3,
+  BookOpen,
 } from "lucide-react";
 import { GithubIcon } from "../ui/icons/GithubIcon";
 import { ProblemSolvingProfile } from "../career/ProblemSolvingProfile";
 import { SkillProgressView } from "../skills/SkillProgressView";
 import { EvidenceDrawer } from "../evidence/EvidenceDrawer";
 import { ProfileEditModal } from "../profile/ProfileEditModal";
-import { Edit3 } from "lucide-react";
+import { ProjectCaseStudyModal } from "../projects/ProjectCaseStudyModal";
+import { GitHubHeatmap } from "./GitHubHeatmap";
 
 interface PortfolioViewProps {
   portfolioData: PortfolioData | null;
@@ -40,7 +44,21 @@ export function PortfolioView({
   const [copied, setCopied] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [caseStudyProject, setCaseStudyProject] = useState<Project | null>(null);
+  const [isRecruiterMode, setIsRecruiterMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("mode") === "recruiter";
+  });
 
+  const allEvidence = useMemo(() => {
+    if (!portfolioData?.projects) return [];
+    return portfolioData.projects.flatMap((p) => p.claims?.flatMap((c) => c.evidence || []) || []);
+  }, [portfolioData]);
+
+  const topSkills = useMemo(() => {
+    if (!portfolioData?.skills) return [];
+    return portfolioData.skills.slice(0, 4);
+  }, [portfolioData]);
 
   if (loading && !portfolioData) {
     return (
@@ -164,6 +182,17 @@ export function PortfolioView({
           </div>
 
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            {/* Recruiter Mode Toggle */}
+            <button
+              type="button"
+              className={`${styles.recruiterToggleBtn} ${isRecruiterMode ? styles.recruiterToggleBtnActive : ""}`}
+              onClick={() => setIsRecruiterMode(!isRecruiterMode)}
+              title="Toggle 15-Second Recruiter Fast-Skim Overview"
+            >
+              <Zap size={13} />
+              <span>{isRecruiterMode ? "Exit Recruiter Mode" : "Recruiter Mode (15s)"}</span>
+            </button>
+
             {!isPublic && (
               <button
                 type="button"
@@ -181,8 +210,46 @@ export function PortfolioView({
             </button>
           </div>
         </div>
+
+        {/* Recruiter Mode 15-Second Skim Executive Banner */}
+        {isRecruiterMode && (
+          <div className={styles.recruiterBanner}>
+            <div className={styles.recruiterHeader}>
+              <div className={styles.recruiterTitleGroup}>
+                <Zap size={18} color="#38bdf8" />
+                <h3 className={styles.recruiterTitle}>Recruiter Fast Skim · Role Readiness Profile</h3>
+              </div>
+              <span className="badge badge-accent">15-SECOND EXECUTIVE DIGEST</span>
+            </div>
+
+            <div className={styles.recruiterMetricsGrid}>
+              <div className={styles.recruiterMetricCard}>
+                <span className={styles.recruiterMetricLabel}>Target Capability</span>
+                <span className={styles.recruiterMetricValue}>{profile?.headline?.split("·")[0] || "Full Stack & AI Systems"}</span>
+              </div>
+              <div className={styles.recruiterMetricCard}>
+                <span className={styles.recruiterMetricLabel}>Empirical Proofs</span>
+                <span className={styles.recruiterMetricValue} style={{ color: "#34d399" }}>
+                  {projects.reduce((acc, p) => acc + (p.claims?.length || 0), 0)} Verified Claims
+                </span>
+              </div>
+              <div className={styles.recruiterMetricCard}>
+                <span className={styles.recruiterMetricLabel}>Top Competencies</span>
+                <span className={styles.recruiterMetricValue} style={{ fontSize: "0.95rem" }}>
+                  {topSkills.map((s) => s.skill.name).join(", ") || "TypeScript, Python, Architecture"}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
+      {/* GitHub Development Heatmap */}
+      {allEvidence.length > 0 && (
+        <section className={styles.section}>
+          <GitHubHeatmap evidenceList={allEvidence} />
+        </section>
+      )}
 
       {/* Verified Projects & Engineering Case Studies */}
       <section className={styles.section}>
@@ -241,18 +308,27 @@ export function PortfolioView({
                 )}
 
                 <div className={styles.caseStudyFooter}>
-                  {proj.repository_url ? (
-                    <a
-                      href={proj.repository_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.repoLink}
+                  <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+                    {proj.repository_url && (
+                      <a
+                        href={proj.repository_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.repoLink}
+                      >
+                        <GitBranch size={13} /> Repository <ArrowUpRight size={11} />
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      className={styles.caseStudyBtn}
+                      onClick={() => setCaseStudyProject(proj)}
+                      title="Open full architectural case study"
                     >
-                      <GitBranch size={13} /> Repository <ArrowUpRight size={11} />
-                    </a>
-                  ) : (
-                    <span />
-                  )}
+                      <BookOpen size={12} />
+                      <span>Case Study</span>
+                    </button>
+                  </div>
 
                   {projectClaims.length === 0 && (
                     <button
@@ -378,6 +454,17 @@ export function PortfolioView({
       {/* Evidence Verification Drawer */}
       {selectedClaim && (
         <EvidenceDrawer claim={selectedClaim} onClose={() => setSelectedClaim(null)} />
+      )}
+
+      {/* Project Deep-Dive Narrative Case Study Modal */}
+      {caseStudyProject && (
+        <ProjectCaseStudyModal
+          project={caseStudyProject}
+          onClose={() => setCaseStudyProject(null)}
+          onInspectClaim={(claim) => {
+            setSelectedClaim(claim);
+          }}
+        />
       )}
 
       {/* Career Credentials & History Editor Modal */}

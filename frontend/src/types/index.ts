@@ -435,7 +435,7 @@ export interface ResumeBlockItem {
   title: string;
   subtitle?: string;
   order: number;
-  content_payload: Record<string, any>;
+  content_payload: Record<string, unknown>;
 }
 
 

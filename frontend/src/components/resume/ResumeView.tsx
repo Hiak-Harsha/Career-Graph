@@ -28,6 +28,8 @@ import { AtsPreviewModal } from "./AtsPreviewModal";
 import { EvidenceDrawer } from "../evidence/EvidenceDrawer";
 import { exportVisualPdf, exportAtsPdf } from "../../utils/pdfExport";
 import { GithubIcon } from "../ui/icons/GithubIcon";
+import { motion, AnimatePresence } from "framer-motion";
+import { personalityVariants } from "../../lib/motion";
 import {
   Download,
   Eye,
@@ -48,11 +50,15 @@ interface ResumeViewProps {
   initialRole?: string;
   selectedRole?: string;
   onRoleChange?: (role: string) => void;
-  onSave?: (data: Partial<ResumeData>) => Promise<any>;
+  onSave?: (data: Partial<ResumeData>) => Promise<unknown>;
   resumeData?: ResumeData | null;
   loading?: boolean;
   saving?: boolean;
-  onAiImprove?: (fieldType: "summary" | "bullet", text: string, targetRole: string) => Promise<any>;
+  onAiImprove?: (
+    fieldType: "summary" | "bullet",
+    text: string,
+    targetRole: string
+  ) => Promise<{ improved_text?: string; suggestions?: string[] } | void>;
 }
 
 const ROLES = [
@@ -88,11 +94,12 @@ export function ResumeView({
 
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
-  const [editedPositioning, setEditedPositioning] = useState("");
+  const [editedPositioning, setEditedPositioning] = useState(() => resumeData?.summary || "");
   const [isImprovingSummary, setIsImprovingSummary] = useState(false);
 
   // Fetch block-based structured representation
   useEffect(() => {
+    let isMounted = true;
     async function fetchRepresentation() {
       try {
         setLoading(true);
@@ -105,32 +112,29 @@ export function ResumeView({
           }),
         });
 
-        if (res.ok) {
+        if (res.ok && isMounted) {
           const data: ResumeBlockRepresentation = await res.json();
           setBlocksRep(data);
           const positioningPayload = data.blocks.find(
             (b) => b.block_type === "positioning"
           )?.content_payload as PositioningBlockPayload | undefined;
-          if (positioningPayload?.statement) {
+          if (positioningPayload?.statement && !editedPositioning) {
             setEditedPositioning(positioningPayload.statement);
           }
         }
       } catch {
         // Handled silently
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
 
     fetchRepresentation();
-  }, [selectedRole, personality]);
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedRole, personality, editedPositioning]);
 
-  // Sync positioning from resumeData if available
-  useEffect(() => {
-    if (resumeData?.summary && !editedPositioning) {
-      setEditedPositioning(resumeData.summary);
-    }
-  }, [resumeData?.summary, editedPositioning]);
 
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
@@ -306,13 +310,22 @@ export function ResumeView({
         </div>
       </div>
 
-      {/* Main Resume Sheet */}
+      {/* Main Resume Sheet with Personality Transition Signature */}
       {loading && !blocksRep ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "4rem 0" }}>
           <Loader2 size={28} className="animate-spin" color="#60a5fa" />
         </div>
       ) : (
-        <div className={paperClass} id="resume-document">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={personality}
+            variants={personalityVariants[personality] || personalityVariants.modern_professional}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className={paperClass}
+            id="resume-document"
+          >
           {/* 1. Identity Block */}
           <div className={styles.headerBlock}>
             <div className={styles.nameRow}>
@@ -588,7 +601,8 @@ export function ResumeView({
               </div>
             </section>
           )}
-        </div>
+          </motion.div>
+        </AnimatePresence>
       )}
 
       {/* Intelligence & Strategy Drawer */}

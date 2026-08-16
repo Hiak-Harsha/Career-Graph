@@ -356,7 +356,7 @@ export function exportVisualPdf(resumeData: ResumeData, personality: string = "m
     doc.text(contactParts.join("  |  "), margin + 20, y + 58);
     y += 92;
 
-  } else {
+  } else if (isModern || true) {
     // Modern Professional Header (Clean navy banner with teal accents)
     doc.setFillColor(15, 23, 42);
     doc.roundedRect(margin, y, contentWidth, 76, 6, 6, "F");

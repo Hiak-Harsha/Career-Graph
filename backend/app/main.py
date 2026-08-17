@@ -48,6 +48,12 @@ from backend.app.schemas import (
 )
 from backend.app.auth import get_current_user, create_access_token, exchange_github_code, encrypt_token, decrypt_token
 from backend.app.config import APP_ENV, OPENAI_API_KEY, ANTHROPIC_API_KEY, DEMO_MODE
+from backend.app.ingestion_schemas import ProfileIngestRequest, ExtractedProfile
+from backend.app.ingestion import (
+    resolve_source_text,
+    extract_profile_from_text,
+    stage_extracted_profile
+)
 
 from backend.app.analyzer import (
     fetch_github_repos,
@@ -779,6 +785,7 @@ def list_resumes(current_user: User = Depends(get_current_user), db: Session = D
             "title": r.title,
             "target_role": r.target_role,
             "variant": r.variant,
+            "resume_format": getattr(r, "resume_format", "ats_clean") or "ats_clean",
             "profile": current_user,
             "summary": r.summary,
             "skills": r.skills_json or [],
@@ -788,6 +795,8 @@ def list_resumes(current_user: User = Depends(get_current_user), db: Session = D
             "education": r.education_json or [],
             "certifications": r.certifications_json or [],
             "links": r.links_json or [],
+            "visible_sections": getattr(r, "visible_sections_json", []) or [],
+            "section_order": getattr(r, "section_order_json", []) or [],
             "is_primary": r.is_primary,
             "created_at": r.created_at,
             "updated_at": r.updated_at
@@ -805,6 +814,7 @@ def get_resume_by_id(id: uuid.UUID, current_user: User = Depends(get_current_use
         "title": r.title,
         "target_role": r.target_role,
         "variant": r.variant,
+        "resume_format": getattr(r, "resume_format", "ats_clean") or "ats_clean",
         "profile": current_user,
         "summary": r.summary,
         "skills": r.skills_json or [],
@@ -814,6 +824,8 @@ def get_resume_by_id(id: uuid.UUID, current_user: User = Depends(get_current_use
         "education": r.education_json or [],
         "certifications": r.certifications_json or [],
         "links": r.links_json or [],
+        "visible_sections": getattr(r, "visible_sections_json", []) or [],
+        "section_order": getattr(r, "section_order_json", []) or [],
         "is_primary": r.is_primary,
         "created_at": r.created_at,
         "updated_at": r.updated_at
@@ -865,6 +877,7 @@ def create_or_save_resume(
         title=req.title or f"{req.target_role} Resume",
         target_role=req.target_role or "Software Engineer",
         variant=req.variant or "visual",
+        resume_format=req.resume_format or "ats_clean",
         summary=req.summary or "",
         skills_json=_to_json_safe(req.skills or []),
         claims_json=_to_json_safe(req.claims or []),
@@ -873,6 +886,8 @@ def create_or_save_resume(
         education_json=_to_json_safe(req.education or []),
         certifications_json=_to_json_safe(req.certifications or []),
         links_json=_to_json_safe(req.links or []),
+        visible_sections_json=_to_json_safe(req.visible_sections or []),
+        section_order_json=_to_json_safe(req.section_order or []),
         is_primary=req.is_primary or False
     )
     db.add(resume)
@@ -898,6 +913,7 @@ def create_or_save_resume(
         "title": resume.title,
         "target_role": resume.target_role,
         "variant": resume.variant,
+        "resume_format": getattr(resume, "resume_format", "ats_clean") or "ats_clean",
         "profile": current_user,
         "summary": resume.summary,
         "skills": resume.skills_json or [],
@@ -907,6 +923,8 @@ def create_or_save_resume(
         "education": resume.education_json or [],
         "certifications": resume.certifications_json or [],
         "links": resume.links_json or [],
+        "visible_sections": getattr(resume, "visible_sections_json", []) or [],
+        "section_order": getattr(resume, "section_order_json", []) or [],
         "is_primary": resume.is_primary,
         "created_at": resume.created_at,
         "updated_at": resume.updated_at
@@ -930,6 +948,8 @@ def update_resume(
         resume.target_role = req.target_role
     if req.variant is not None:
         resume.variant = req.variant
+    if req.resume_format is not None:
+        resume.resume_format = req.resume_format
     if req.summary is not None:
         resume.summary = req.summary
     if req.skills is not None:
@@ -949,6 +969,10 @@ def update_resume(
         resume.certifications_json = _to_json_safe(req.certifications)
     if req.links is not None:
         resume.links_json = _to_json_safe(req.links)
+    if req.visible_sections is not None:
+        resume.visible_sections_json = _to_json_safe(req.visible_sections)
+    if req.section_order is not None:
+        resume.section_order_json = _to_json_safe(req.section_order)
     if req.is_primary is not None:
         resume.is_primary = req.is_primary
 
@@ -961,6 +985,7 @@ def update_resume(
         "title": resume.title,
         "target_role": resume.target_role,
         "variant": resume.variant,
+        "resume_format": getattr(resume, "resume_format", "ats_clean") or "ats_clean",
         "profile": current_user,
         "summary": resume.summary,
         "skills": resume.skills_json or [],
@@ -970,6 +995,8 @@ def update_resume(
         "education": resume.education_json or [],
         "certifications": resume.certifications_json or [],
         "links": resume.links_json or [],
+        "visible_sections": getattr(resume, "visible_sections_json", []) or [],
+        "section_order": getattr(resume, "section_order_json", []) or [],
         "is_primary": resume.is_primary,
         "created_at": resume.created_at,
         "updated_at": resume.updated_at
@@ -1270,6 +1297,9 @@ def generate_blocks_representation_from_strategy(user: User, strategy: ResumeStr
     
     layout = layout_override or strategy.suggested_layout or "modern_professional"
     
+    pos_statement = strategy.candidate_positioning
+    summary_bullets = [s.strip() for s in re.split(r'(?<=[.!?])\s+', pos_statement) if s.strip()][:3]
+
     # 1. Identity block
     blocks: List[ResumeBlockItem] = [
         ResumeBlockItem(
@@ -1304,7 +1334,8 @@ def generate_blocks_representation_from_strategy(user: User, strategy: ResumeStr
             title="Core Profile & Positioning",
             order=3,
             content_payload={
-                "statement": strategy.candidate_positioning,
+                "statement": pos_statement,
+                "summary_bullets": summary_bullets,
                 "research_orientation": identity.research_orientation,
                 "evidence_strength": identity.evidence_strength
             }
@@ -1403,15 +1434,15 @@ def generate_blocks_representation_from_strategy(user: User, strategy: ResumeStr
         }
     ))
 
-    # 10. Achievements Block (Featured Layout only — Sidebar Cards)
-    if layout == "featured":
-        top_claims = (
-            db.query(Claim)
-            .filter(Claim.user_id == user.id, Claim.status == "user_confirmed")
-            .order_by(Claim.confidence.desc())
-            .limit(4)
-            .all()
-        )
+    # 10. Achievements Block (Available for Featured & ATS-Clean layouts)
+    top_claims = (
+        db.query(Claim)
+        .filter(Claim.user_id == user.id, Claim.status == "user_confirmed")
+        .order_by(Claim.confidence.desc())
+        .limit(4)
+        .all()
+    )
+    if top_claims:
         achievements = [
             AchievementItem(
                 icon=_icon_for_domain(getattr(c, "related_domain", None)),
@@ -1439,6 +1470,7 @@ def generate_blocks_representation_from_strategy(user: User, strategy: ResumeStr
     return ResumeBlockRepresentation(
         target_role=strategy.target_role,
         layout_personality=layout,
+        resume_format="ats_clean" if layout in ("featured", "ats_clean") else "visual",
         positioning_statement=strategy.candidate_positioning,
         blocks=blocks,
         evidence_coverage_rate=coverage_rate,
@@ -1447,7 +1479,7 @@ def generate_blocks_representation_from_strategy(user: User, strategy: ResumeStr
     )
 
 
-def build_featured_resume(user: User, db: Session) -> ResumeBlockRepresentation:
+def build_featured_resume(user: User, db: Session, resume_format: str = "ats_clean") -> ResumeBlockRepresentation:
     """Evaluates candidate competencies against available roles and returns the optimal Featured Resume."""
     candidate_roles = [
         "AI / ML Engineer",
@@ -1460,7 +1492,9 @@ def build_featured_resume(user: User, db: Session) -> ResumeBlockRepresentation:
         for role in candidate_roles
     ]
     _, best_strategy = max(scored, key=lambda pair: pair[1].role_alignment_score)
-    return generate_blocks_representation_from_strategy(user, best_strategy, db, "featured")
+    rep = generate_blocks_representation_from_strategy(user, best_strategy, db, "featured")
+    rep.resume_format = resume_format
+    return rep
 
 
 @app.post("/api/resume/featured/auto-generate", response_model=ResumeBlockRepresentation)
@@ -1777,11 +1811,51 @@ def get_recruiter_match(
     )
 
 
+# --- Multi-Source Profile Ingestion ---
+
+@app.post("/api/ingest/profile")
+def ingest_profile(
+    req: ProfileIngestRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Ingests resume/career profile text from paste, PDF/DOCX upload, or GitHub README.
+    Strict structured output + bounded repair retry, content-hash idempotency, and audit logging.
+    """
+    import hashlib
+    from backend.app.models import AIInference
+
+    raw_text = resolve_source_text(req, current_user)
+    content_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+
+    # Check cached extraction for idempotency
+    cached = db.query(AIInference).filter(
+        AIInference.content_hash == content_hash,
+        AIInference.prompt_type == "profile_extraction",
+        AIInference.error_message.is_(None)
+    ).first()
+
+    if cached and cached.response_payload:
+        extracted = ExtractedProfile.model_validate_json(cached.response_payload)
+    else:
+        extracted = extract_profile_from_text(raw_text, db=db, content_hash=content_hash)
+
+    staged = stage_extracted_profile(db, current_user, extracted)
+    return {
+        "status": "success",
+        "staged": staged,
+        "review_required": True,
+        "headline": extracted.headline,
+        "extracted_summary": f"Staged {staged['work_experiences_count']} experiences, {staged['educations_count']} educations, {staged['certifications_count']} certifications for review."
+    }
+
+
 # --- Review Queue Endpoints ---
 
 @app.get("/api/review")
 def get_review_queue(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Returns AI-suggested claims, skills, and domains waiting for user confirmation."""
+    """Returns AI-suggested claims, skills, domains, experiences, education, and certifications waiting for confirmation."""
     pending_claims = db.query(Claim).filter(
         Claim.user_id == current_user.id,
         Claim.status == "ai_suggested"
@@ -1812,6 +1886,21 @@ def get_review_queue(current_user: User = Depends(get_current_user), db: Session
         Project.user_id == current_user.id,
         project_skills.c.status == "ai_suggested"
     ).all()
+
+    pending_experiences = db.query(WorkExperience).filter(
+        WorkExperience.user_id == current_user.id,
+        WorkExperience.status == "ai_suggested"
+    ).all()
+
+    pending_educations = db.query(Education).filter(
+        Education.user_id == current_user.id,
+        Education.status == "ai_suggested"
+    ).all()
+
+    pending_certifications = db.query(Certification).filter(
+        Certification.user_id == current_user.id,
+        Certification.status == "ai_suggested"
+    ).all()
     
     return {
         "claims": [{
@@ -1835,7 +1924,30 @@ def get_review_queue(current_user: User = Depends(get_current_user), db: Session
             "confidence": s.confidence,
             "project_title": s.project_title,
             "skill_name": s.skill_name
-        } for s in pending_skills_query]
+        } for s in pending_skills_query],
+        "experiences": [{
+            "id": str(e.id),
+            "company": e.company,
+            "role": e.role,
+            "start_date": e.start_date,
+            "end_date": e.end_date,
+            "location": e.location,
+            "bullets": e.bullets or []
+        } for e in pending_experiences],
+        "educations": [{
+            "id": str(ed.id),
+            "institution": ed.institution,
+            "degree": ed.degree,
+            "field_of_study": ed.field_of_study,
+            "start_year": ed.start_year,
+            "end_year": ed.end_year
+        } for ed in pending_educations],
+        "certifications": [{
+            "id": str(ct.id),
+            "name": ct.name,
+            "issuer": ct.issuer,
+            "issue_date": ct.issue_date
+        } for ct in pending_certifications]
     }
 
 
@@ -1907,6 +2019,60 @@ def update_project_skill_status(
     db.commit()
     update_skill_progress_scores(db, current_user.id)
     return {"status": "success", "new_status": status_val}
+
+
+@app.patch("/api/profile/experience/{id}")
+def update_work_experience_status(
+    id: uuid.UUID,
+    payload: Dict[str, str],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    rec = db.query(WorkExperience).filter(WorkExperience.id == id, WorkExperience.user_id == current_user.id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Work experience record not found")
+    status_val = payload.get("status")
+    if status_val not in ["user_confirmed", "user_rejected", "ai_suggested"]:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+    rec.status = status_val
+    db.commit()
+    return {"status": "success", "id": str(id), "new_status": status_val}
+
+
+@app.patch("/api/profile/education/{id}")
+def update_education_status(
+    id: uuid.UUID,
+    payload: Dict[str, str],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    rec = db.query(Education).filter(Education.id == id, Education.user_id == current_user.id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Education record not found")
+    status_val = payload.get("status")
+    if status_val not in ["user_confirmed", "user_rejected", "ai_suggested"]:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+    rec.status = status_val
+    db.commit()
+    return {"status": "success", "id": str(id), "new_status": status_val}
+
+
+@app.patch("/api/profile/certification/{id}")
+def update_certification_status(
+    id: uuid.UUID,
+    payload: Dict[str, str],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    rec = db.query(Certification).filter(Certification.id == id, Certification.user_id == current_user.id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Certification record not found")
+    status_val = payload.get("status")
+    if status_val not in ["user_confirmed", "user_rejected", "ai_suggested"]:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+    rec.status = status_val
+    db.commit()
+    return {"status": "success", "id": str(id), "new_status": status_val}
 
 
 # --- Ideas & Projects Endpoints (Living Collective Entity) ---

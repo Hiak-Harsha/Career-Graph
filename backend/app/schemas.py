@@ -47,6 +47,8 @@ class WorkExperienceCreate(BaseModel):
     description: Optional[str] = None
     bullets: List[str] = []
     is_current: bool = False
+    origin: Optional[str] = "USER"
+    status: Optional[str] = "user_confirmed"
 
 class WorkExperienceResponse(WorkExperienceCreate):
     id: UUID
@@ -62,6 +64,8 @@ class EducationCreate(BaseModel):
     start_year: Optional[str] = None
     end_year: Optional[str] = None
     grade_or_gpa: Optional[str] = None
+    origin: Optional[str] = "USER"
+    status: Optional[str] = "user_confirmed"
 
 class EducationResponse(EducationCreate):
     id: UUID
@@ -75,6 +79,8 @@ class CertificationCreate(BaseModel):
     issuer: str
     issue_date: Optional[str] = None
     credential_url: Optional[str] = None
+    origin: Optional[str] = "USER"
+    status: Optional[str] = "user_confirmed"
 
 class CertificationResponse(CertificationCreate):
     id: UUID
@@ -260,11 +266,14 @@ class ResumeResponse(BaseModel):
     skills: List[Any]
     claims: List[Any]
     variant: Optional[str] = "visual"
+    resume_format: Optional[str] = "ats_clean"
     title: Optional[str] = "Master Resume"
     experience: Optional[List[Dict[str, Any]]] = []
     education: Optional[List[Dict[str, Any]]] = []
     certifications: Optional[List[Dict[str, Any]]] = []
     links: Optional[List[Dict[str, Any]]] = []
+    visible_sections: Optional[List[str]] = None
+    section_order: Optional[List[str]] = None
     is_primary: Optional[bool] = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -273,6 +282,7 @@ class ResumeSaveRequest(BaseModel):
     title: Optional[str] = "Master Resume"
     target_role: Optional[str] = "Software Engineer"
     variant: Optional[str] = "visual"
+    resume_format: Optional[str] = "ats_clean"
     summary: Optional[str] = ""
     skills: Optional[List[Any]] = []
     claims: Optional[List[Any]] = []
@@ -281,6 +291,8 @@ class ResumeSaveRequest(BaseModel):
     education: Optional[List[Dict[str, Any]]] = []
     certifications: Optional[List[Dict[str, Any]]] = []
     links: Optional[List[Dict[str, Any]]] = []
+    visible_sections: Optional[List[str]] = None
+    section_order: Optional[List[str]] = None
     is_primary: Optional[bool] = False
 
 class AIImproveRequest(BaseModel):
@@ -352,6 +364,7 @@ class ResumeStrategyRequest(BaseModel):
     target_role: str
     custom_role_description: Optional[str] = None
     layout_preference: Optional[str] = "modern_professional"
+    resume_format: Optional[str] = "ats_clean"
 
 class ResumeStrategyResponse(BaseModel):
     target_role: str
@@ -364,6 +377,11 @@ class ResumeStrategyResponse(BaseModel):
     weak_areas: List[str]
     suggested_layout: str  # 'editorial', 'technical', 'modern_professional', 'research', 'executive'
     role_alignment_score: float  # 0.0 - 1.0
+
+class PositioningBlockPayload(BaseModel):
+    statement: str
+    evidence_strength: Optional[str] = "High"
+    summary_bullets: Optional[List[str]] = []
 
 class AchievementItem(BaseModel):
     icon: str  # lucide icon key, assigned deterministically
@@ -383,7 +401,8 @@ class ResumeBlockItem(BaseModel):
 
 class ResumeBlockRepresentation(BaseModel):
     target_role: str
-    layout_personality: str  # 'editorial', 'technical', 'modern_professional', 'research', 'executive'
+    layout_personality: str  # 'editorial', 'technical', 'modern_professional', 'research', 'executive', 'featured'
+    resume_format: Optional[str] = "ats_clean"  # 'ats_clean' | 'visual'
     positioning_statement: str
     blocks: List[ResumeBlockItem]
     evidence_coverage_rate: float

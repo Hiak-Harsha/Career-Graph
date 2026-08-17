@@ -122,24 +122,35 @@ describe("ResumeView Component", () => {
     } as unknown as Response);
   });
 
-  it("renders resume candidate identity, verified badge, selected work, and certifications", async () => {
+  it("renders resume candidate identity, selected work, and certifications", async () => {
     await act(async () => {
       render(<ResumeView resumeData={mockResume} initialRole="AI / ML Engineer" />);
     });
 
     expect(await screen.findByText("Alex Rivera")).toBeInTheDocument();
-    expect(screen.getByText(/Verified Career Graph/i)).toBeInTheDocument();
     expect(await screen.findByText("Core Platform")).toBeInTheDocument();
-    expect(await screen.findByText("Deep Learning Specialization")).toBeInTheDocument();
+    expect(await screen.findByText(/Deep Learning Specialization/i)).toBeInTheDocument();
   });
 
-  it("switches visual personality layout", async () => {
+  it("switches visual personality layout via format and style picker", async () => {
     await act(async () => {
       render(<ResumeView resumeData={mockResume} initialRole="AI / ML Engineer" />);
     });
     await screen.findByText("Alex Rivera");
 
-    const techBtn = screen.getByRole("button", { name: "Technical" });
+    // Open style picker
+    const styleBtn = screen.getByTitle(/Choose format, visual personality, and section visibility/i);
+    await act(async () => {
+      fireEvent.click(styleBtn);
+    });
+
+    // Select Visual Showcase format
+    const visualFormatBtn = screen.getByText(/Visual Showcase/i);
+    await act(async () => {
+      fireEvent.click(visualFormatBtn);
+    });
+
+    const techBtn = screen.getByRole("button", { name: /Technical/i });
     await act(async () => {
       fireEvent.click(techBtn);
     });

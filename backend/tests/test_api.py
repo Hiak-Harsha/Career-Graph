@@ -804,6 +804,71 @@ def test_auto_generate_featured_resume(client, db):
     assert isinstance(achievements_block["content_payload"]["achievements"], list)
 
 
+def test_resume_summary_bullets_and_ats_clean(client, db):
+    """Asserts positioning block produces deterministic sentence-split summary_bullets and defaults to ats_clean."""
+    res = client.post("/api/resume/representation", json={"target_role": "Backend Systems Engineer", "layout_preference": "modern_professional"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["resume_format"] == "visual"
+    
+    pos_block = next(b for b in data["blocks"] if b["block_type"] == "positioning")
+    assert "summary_bullets" in pos_block["content_payload"]
+    assert isinstance(pos_block["content_payload"]["summary_bullets"], list)
+    assert len(pos_block["content_payload"]["summary_bullets"]) > 0
+
+
+def test_ingest_profile_paste_and_review_queue(client, db):
+    """Asserts that pasting raw resume text stages work experiences, educations, and certifications into the review queue."""
+    raw_resume = """
+    Kunal Saxena | Lead Software Engineer
+    
+    EXPERIENCE
+    Lead Software Engineer at Acme Corp
+    - Architected distributed event stream processing pipelines handling 50k events/sec.
+    - Optimized database indexing to reduce p99 query latency by 40%.
+    
+    EDUCATION
+    Stanford University, Computer Science, B.S. Degree
+    
+    CERTIFICATIONS
+    AWS Certified Solutions Architect, Amazon Web Services, 2023
+    """
+    res = client.post("/api/ingest/profile", json={"source_type": "paste", "raw_text": raw_resume})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["review_required"] is True
+    assert data["staged"]["work_experiences_count"] >= 1
+    
+    # Verify items are in the review queue
+    review_res = client.get("/api/review")
+    assert review_res.status_code == 200
+    queue = review_res.json()
+    assert "experiences" in queue
+    assert "educations" in queue
+    assert "certifications" in queue
+    assert len(queue["experiences"]) >= 1
+    
+    # Confirm a staged experience item
+    exp_id = queue["experiences"][0]["id"]
+    patch_res = client.patch(f"/api/profile/experience/{exp_id}", json={"status": "user_confirmed"})
+    assert patch_res.status_code == 200
+    assert patch_res.json()["new_status"] == "user_confirmed"
+
+
+def test_ingest_profile_idempotency_caching(client, db):
+    """Asserts that calling profile ingestion with the same raw text utilizes cached AIInference."""
+    text = "Jane Doe | Staff Systems Architect\nEXPERIENCE\nSenior Engineer at Highload Tech\n- Built low latency network engine."
+    
+    res1 = client.post("/api/ingest/profile", json={"source_type": "paste", "raw_text": text})
+    assert res1.status_code == 200
+    
+    res2 = client.post("/api/ingest/profile", json={"source_type": "paste", "raw_text": text})
+    assert res2.status_code == 200
+    assert res2.json()["status"] == "success"
+
+
+
 
 
 

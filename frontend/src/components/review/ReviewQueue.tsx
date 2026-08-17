@@ -14,16 +14,41 @@ export type ReviewItem = {
   domain_name?: string;
   skill_name?: string;
   claim?: string;
-  confidence: number;
+  confidence?: number;
+  // Career history fields
+  company?: string;
+  role?: string;
+  location?: string;
+  start_date?: string;
+  end_date?: string;
+  bullets?: string[];
+  institution?: string;
+  degree?: string;
+  field_of_study?: string;
+  start_year?: string;
+  end_year?: string;
+  name?: string;
+  issuer?: string;
+  issue_date?: string;
 };
 
 export type Queue = {
   claims: ReviewItem[];
   domains: ReviewItem[];
   skills: ReviewItem[];
+  experiences: ReviewItem[];
+  educations: ReviewItem[];
+  certifications: ReviewItem[];
 };
 
-const emptyQueue: Queue = { claims: [], domains: [], skills: [] };
+const emptyQueue: Queue = {
+  claims: [],
+  domains: [],
+  skills: [],
+  experiences: [],
+  educations: [],
+  certifications: []
+};
 
 interface ReviewQueueProps {
   onRefreshAll: () => Promise<void>;
@@ -39,7 +64,14 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
       setStatus("Loading suggestions…");
       const response = await apiFetch("/review");
       const data = await response.json();
-      setQueue(data);
+      setQueue({
+        claims: data.claims || [],
+        domains: data.domains || [],
+        skills: data.skills || [],
+        experiences: data.experiences || [],
+        educations: data.educations || [],
+        certifications: data.certifications || [],
+      });
       setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to load suggestions.");
@@ -58,7 +90,7 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
   };
 
   const decide = async (
-    kind: "claims" | "domains" | "skills",
+    kind: keyof Queue,
     item: ReviewItem,
     decision: "user_confirmed" | "user_rejected"
   ) => {
@@ -74,12 +106,13 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
     }));
 
     try {
-      const path =
-        kind === "claims"
-          ? `/claims/${item.id}`
-          : kind === "domains"
-          ? `/project-domains/${item.project_id}/${item.domain_id}`
-          : `/project-skills/${item.project_id}/${item.skill_id}`;
+      let path = "";
+      if (kind === "claims") path = `/claims/${item.id}`;
+      else if (kind === "domains") path = `/project-domains/${item.project_id}/${item.domain_id}`;
+      else if (kind === "skills") path = `/project-skills/${item.project_id}/${item.skill_id}`;
+      else if (kind === "experiences") path = `/profile/experience/${item.id}`;
+      else if (kind === "educations") path = `/profile/education/${item.id}`;
+      else if (kind === "certifications") path = `/profile/certification/${item.id}`;
 
       await apiFetch(path, {
         method: "PATCH",
@@ -97,10 +130,39 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
     }
   };
 
+  const getItemTitle = (kind: keyof Queue, item: ReviewItem): string => {
+    if (kind === "experiences") {
+      return `${item.role || "Role"} at ${item.company || "Company"}`;
+    }
+    if (kind === "educations") {
+      return `${item.degree || "Degree"} · ${item.institution || "Institution"}`;
+    }
+    if (kind === "certifications") {
+      return `${item.name || "Certification"} (${item.issuer || "Issuer"})`;
+    }
+    return item.claim ?? item.domain_name ?? item.skill_name ?? "Suggestion";
+  };
+
+  const getItemSubtitle = (kind: keyof Queue, item: ReviewItem): string => {
+    if (kind === "experiences") {
+      return `${item.start_date || ""} - ${item.end_date || "Present"} ${item.location ? `· ${item.location}` : ""}`;
+    }
+    if (kind === "educations") {
+      return `${item.field_of_study ? `${item.field_of_study} · ` : ""}${item.start_year || ""} - ${item.end_year || ""}`;
+    }
+    if (kind === "certifications") {
+      return item.issue_date ? `Issued ${item.issue_date}` : "Credential";
+    }
+    return `${item.project_title ? `${item.project_title} · ` : ""}${item.confidence !== undefined ? `${Math.round(item.confidence * 100)}% confidence` : "AI Proposed"}`;
+  };
+
   const groups: [keyof Queue, string][] = [
     ["claims", "Claims"],
     ["domains", "Domains"],
     ["skills", "Skills"],
+    ["experiences", "Work Experiences"],
+    ["educations", "Educations"],
+    ["certifications", "Certifications"],
   ];
 
   return (
@@ -116,24 +178,28 @@ export function ReviewQueue({ onRefreshAll }: ReviewQueueProps) {
 
       {groups.map(([kind, label]) => (
         <div className={`${styles.card} surface`} key={kind}>
-          <h2 className={styles.groupTitle}>{label} ({queue[kind].length})</h2>
-          {queue[kind].length === 0 ? (
+          <h2 className={styles.groupTitle}>{label} ({queue[kind]?.length || 0})</h2>
+          {(!queue[kind] || queue[kind].length === 0) ? (
             <p className={styles.empty}>Nothing awaiting review in {label.toLowerCase()}.</p>
           ) : (
             queue[kind].map((item, idx) => {
               const key = getItemIdentifier(kind, item, idx);
-              const name =
-                item.claim ?? item.domain_name ?? item.skill_name ?? "Suggestion";
+              const title = getItemTitle(kind, item);
+              const subtitle = getItemSubtitle(kind, item);
               const isItemBusy = busy === key;
 
               return (
                 <div className={styles.reviewItem} key={key}>
                   <div className={styles.itemInfo}>
-                    <strong className={styles.itemName}>{name}</strong>
-                    <p className={styles.meta}>
-                      {item.project_title && `${item.project_title} · `}
-                      {Math.round(item.confidence * 100)}% confidence
-                    </p>
+                    <strong className={styles.itemName}>{title}</strong>
+                    <p className={styles.meta}>{subtitle}</p>
+                    {item.bullets && item.bullets.length > 0 && (
+                      <ul style={{ margin: "4px 0 0 16px", padding: 0, fontSize: "0.8rem", color: "var(--color-text-secondary, #94a3b8)" }}>
+                        {item.bullets.slice(0, 2).map((b, bi) => (
+                          <li key={bi}>{b}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   <div className={styles.reviewActions}>
                     <button

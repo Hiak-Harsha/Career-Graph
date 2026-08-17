@@ -17,6 +17,8 @@ import type {
   ExperienceBlockPayload,
   EducationBlockPayload,
   CertificationsBlockPayload,
+  ResumeFormat,
+  ResumeSaveRequest,
 } from "../../types";
 import { apiFetch } from "../../config";
 import { ProfessionalSignature } from "./ProfessionalSignature";
@@ -24,6 +26,9 @@ import { ResumeStrategyDrawer } from "./ResumeStrategyDrawer";
 import { AtsPreviewModal } from "./AtsPreviewModal";
 import { EvidenceDrawer } from "../evidence/EvidenceDrawer";
 import { FeaturedResumeView } from "./FeaturedResumeView";
+import { AtsCleanResumeView } from "./AtsCleanResumeView";
+import { ResumeStylePicker } from "./ResumeStylePicker";
+import { EditableSection } from "./EditableSection";
 import { exportVisualPdf, exportAtsPdf } from "../../utils/pdfExport";
 import { GithubIcon } from "../ui/icons/GithubIcon";
 import { motion, AnimatePresence } from "framer-motion";
@@ -42,6 +47,7 @@ import {
   Sparkles,
   Award,
   ExternalLink,
+  Palette,
 } from "lucide-react";
 
 interface ResumeViewProps {
@@ -66,15 +72,6 @@ const ROLES = [
   "Full Stack Engineer",
 ];
 
-const PERSONALITIES: { id: ResumePersonality; label: string }[] = [
-  { id: "featured", label: "Featured" },
-  { id: "modern_professional", label: "Modern" },
-  { id: "technical", label: "Technical" },
-  { id: "editorial", label: "Editorial" },
-  { id: "research", label: "Research" },
-  { id: "executive", label: "Executive" },
-];
-
 export function ResumeView({
   initialRole = "AI / ML Engineer",
   onRoleChange,
@@ -84,7 +81,35 @@ export function ResumeView({
   onAiImprove,
 }: ResumeViewProps) {
   const [selectedRole, setSelectedRole] = useState(initialRole);
+  const [resumeFormat, setResumeFormat] = useState<ResumeFormat>(
+    () => (resumeData?.resume_format as ResumeFormat) || "ats_clean"
+  );
   const [personality, setPersonality] = useState<ResumePersonality>("modern_professional");
+  const [visibleSections, setVisibleSections] = useState<string[]>(
+    () =>
+      resumeData?.visible_sections || [
+        "summary",
+        "skills",
+        "experience",
+        "achievements",
+        "projects",
+        "education",
+        "certifications",
+      ]
+  );
+  const [sectionOrder, setSectionOrder] = useState<string[]>(
+    () =>
+      resumeData?.section_order || [
+        "summary",
+        "skills",
+        "experience",
+        "achievements",
+        "projects",
+        "education",
+        "certifications",
+      ]
+  );
+  const [showStylePicker, setShowStylePicker] = useState(false);
   const [blocksRep, setBlocksRep] = useState<ResumeBlockRepresentation | null>(null);
   const [loading, setLoading] = useState(false);
   const [isAutoGenerating, setIsAutoGenerating] = useState(false);
@@ -92,8 +117,9 @@ export function ResumeView({
   const [atsModalOpen, setAtsModalOpen] = useState(false);
   const [selectedProofClaim, setSelectedProofClaim] = useState<Claim | null>(null);
 
-  // Editing state
+  // Full Structured Editing state
   const [isEditing, setIsEditing] = useState(false);
+  const [editedResume, setEditedResume] = useState<Partial<ResumeSaveRequest>>({});
   const [editedPositioning, setEditedPositioning] = useState(() => resumeData?.summary || "");
   const [isImprovingSummary, setIsImprovingSummary] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<"idle" | "saved" | "error">("idle");
@@ -110,6 +136,7 @@ export function ResumeView({
       if (res.ok) {
         const data: ResumeBlockRepresentation = await res.json();
         setBlocksRep(data);
+        setResumeFormat("ats_clean");
         setPersonality("featured");
         if (data.target_role) {
           setSelectedRole(data.target_role);
@@ -136,6 +163,7 @@ export function ResumeView({
           body: JSON.stringify({
             target_role: selectedRole,
             layout_preference: personality,
+            resume_format: resumeFormat,
           }),
         });
 
@@ -160,8 +188,7 @@ export function ResumeView({
     return () => {
       isMounted = false;
     };
-  }, [selectedRole, personality, editedPositioning]);
-
+  }, [selectedRole, personality, resumeFormat, editedPositioning]);
 
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
@@ -169,10 +196,16 @@ export function ResumeView({
   };
 
   const handleExportPdf = () => {
-    if (blocksRep && resumeData) {
-      exportVisualPdf(resumeData, personality);
-    } else if (resumeData) {
-      exportVisualPdf(resumeData, personality);
+    if (resumeData) {
+      exportVisualPdf(
+        {
+          ...resumeData,
+          resume_format: resumeFormat,
+          visible_sections: visibleSections,
+          section_order: sectionOrder,
+        },
+        resumeFormat === "ats_clean" ? "ats_clean" : personality
+      );
     }
   };
 
@@ -188,9 +221,18 @@ export function ResumeView({
         setSaveFeedback("idle");
         setSaveErrorMessage("");
         await onSave({
-          summary: editedPositioning,
+          summary: editedResume.summary ?? editedPositioning,
+          skills: (editedResume.skills as string[]) ?? resumeData?.skills,
+          claims: (editedResume.claims as string[]) ?? resumeData?.claims,
+          projects: editedResume.projects ?? resumeData?.projects,
+          experience: editedResume.experience ?? resumeData?.experience,
+          education: editedResume.education ?? resumeData?.education,
+          certifications: editedResume.certifications ?? resumeData?.certifications,
           target_role: selectedRole,
           variant: personality,
+          resume_format: resumeFormat,
+          visible_sections: visibleSections,
+          section_order: sectionOrder,
         });
         setSaveFeedback("saved");
         setIsEditing(false);
@@ -209,6 +251,7 @@ export function ResumeView({
       const res = await onAiImprove("summary", editedPositioning, selectedRole);
       if (res && res.improved_text) {
         setEditedPositioning(res.improved_text);
+        setEditedResume((prev: Partial<ResumeSaveRequest>) => ({ ...prev, summary: res.improved_text }));
       }
     } catch {
       // Handled silently
@@ -234,7 +277,9 @@ export function ResumeView({
 
   // Personality paper CSS class
   const paperClass =
-    personality === "editorial"
+    resumeFormat === "ats_clean"
+      ? styles.paper
+      : personality === "editorial"
       ? `${styles.paper} ${styles.paperEditorial}`
       : personality === "technical"
       ? `${styles.paper} ${styles.paperTechnical}`
@@ -277,7 +322,7 @@ export function ResumeView({
             }}
             onClick={handleAutoGenerate}
             disabled={isAutoGenerating}
-            title="Auto-evaluate best fitting role and 2-column featured layout"
+            title="Auto-evaluate best fitting role and ATS-clean featured layout"
           >
             {isAutoGenerating ? (
               <Loader2 size={13} className="animate-spin" />
@@ -287,20 +332,22 @@ export function ResumeView({
             <span>Auto-Generate Featured</span>
           </button>
 
-          <div className={styles.personalityGroup}>
-            {PERSONALITIES.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className={`${styles.personalityBtn} ${
-                  personality === p.id ? styles.personalityBtnActive : ""
-                }`}
-                onClick={() => setPersonality(p.id)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              borderColor: showStylePicker ? "#0284c7" : undefined,
+              background: showStylePicker ? "rgba(2, 132, 199, 0.1)" : undefined,
+            }}
+            onClick={() => setShowStylePicker(!showStylePicker)}
+            title="Choose format, visual personality, and section visibility"
+          >
+            <Palette size={14} color="#0284c7" />
+            <span>Format & Style ({resumeFormat === "ats_clean" ? "ATS Clean" : personality})</span>
+          </button>
         </div>
 
         <div className={styles.actionsGroup}>
@@ -336,12 +383,31 @@ export function ResumeView({
                 )}
               </button>
               {saveFeedback === "saved" && (
-                <span style={{ color: "#34d399", fontSize: "0.8rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                <span
+                  style={{
+                    color: "#34d399",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                  }}
+                >
                   <Check size={13} /> Saved
                 </span>
               )}
               {saveFeedback === "error" && (
-                <span style={{ color: "#f87171", fontSize: "0.8rem", fontWeight: 500, display: "flex", alignItems: "center", gap: "0.25rem" }} title={saveErrorMessage}>
+                <span
+                  style={{
+                    color: "#f87171",
+                    fontSize: "0.8rem",
+                    fontWeight: 500,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                  }}
+                  title={saveErrorMessage}
+                >
                   {saveErrorMessage || "Save failed"}
                 </span>
               )}
@@ -362,7 +428,7 @@ export function ResumeView({
             onClick={() => setAtsModalOpen(true)}
           >
             <Eye size={14} />
-            <span>ATS View</span>
+            <span>ATS Plain</span>
           </button>
           <button type="button" className="btn btn-accent" onClick={handleExportPdf}>
             <Download size={14} />
@@ -371,29 +437,113 @@ export function ResumeView({
         </div>
       </div>
 
-      {/* Main Resume Sheet with Personality Transition Signature */}
-      {loading && !blocksRep ? (
+      {/* Style & Format Customization Drawer / Panel */}
+      {showStylePicker && (
+        <ResumeStylePicker
+          resumeFormat={resumeFormat}
+          onFormatChange={setResumeFormat}
+          personality={personality}
+          onPersonalityChange={setPersonality}
+          visibleSections={visibleSections}
+          onVisibleSectionsChange={setVisibleSections}
+          sectionOrder={sectionOrder}
+          onSectionOrderChange={setSectionOrder}
+        />
+      )}
+
+      {/* Main Resume Sheet or Structured Editor */}
+      {isEditing ? (
+        <div className={styles.paper} style={{ maxWidth: 780, margin: "0 auto", padding: "2rem" }}>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: 800, marginBottom: "1.25rem" }}>
+            Structured Resume Editor
+          </h2>
+
+          <EditableSection
+            title="Professional Summary & Positioning Bullets"
+            itemLabel="Bullet"
+            items={
+              editedResume.summary
+                ? editedResume.summary.split("\n\n").filter(Boolean)
+                : positioningBlock?.summary_bullets || [editedPositioning || ""]
+            }
+            onChange={(bullets) => {
+              const joined = bullets.join("\n\n");
+              setEditedPositioning(joined);
+              setEditedResume((prev: Partial<ResumeSaveRequest>) => ({ ...prev, summary: joined }));
+            }}
+          />
+
+          <EditableSection
+            title="Core Skills & Competencies"
+            itemLabel="Skill"
+            items={
+              (editedResume.skills as string[]) ||
+              resumeData?.skills ||
+              (technicalDepthBlock?.clusters
+                ?.flatMap((c) => c.capabilities.split(/[·•,]+/))
+                .map((s) => s.trim())
+                .filter(Boolean) || [
+                "Python",
+                "Distributed Systems",
+                "FastAPI",
+                "TypeScript",
+              ])
+            }
+            onChange={(skills) => {
+              setEditedResume((prev: Partial<ResumeSaveRequest>) => ({ ...prev, skills }));
+            }}
+          />
+
+          <EditableSection
+            title="Key Verified Achievements"
+            itemLabel="Achievement"
+            items={(editedResume.claims as string[]) || resumeData?.claims || []}
+            onChange={(claims) => {
+              setEditedResume((prev: Partial<ResumeSaveRequest>) => ({ ...prev, claims }));
+            }}
+          />
+        </div>
+      ) : loading && !blocksRep ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "4rem 0" }}>
           <Loader2 size={28} className="animate-spin" color="#60a5fa" />
         </div>
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={personality}
-            variants={personalityVariants[personality] || personalityVariants.modern_professional}
+            key={`${resumeFormat}-${personality}`}
+            variants={
+              personalityVariants[resumeFormat === "ats_clean" ? "ats_clean" : personality] ||
+              personalityVariants.modern_professional
+            }
             initial="initial"
             animate="animate"
             exit="exit"
             className={paperClass}
             id="resume-document"
           >
-          {personality === "featured" && blocksRep?.blocks ? (
-            <FeaturedResumeView
-              blocks={blocksRep.blocks}
-              onInspectProof={setSelectedProofClaim}
-            />
-          ) : (
-            <>
+            {resumeFormat === "ats_clean" ? (
+              <AtsCleanResumeView
+                blocksRep={blocksRep}
+                resumeData={resumeData}
+                visibleSections={visibleSections}
+                sectionOrder={sectionOrder}
+                onInspectProof={(id, text) =>
+                  setSelectedProofClaim({
+                    id,
+                    claim: text,
+                    confidence: 1.0,
+                    status: "user_confirmed",
+                    evidence: [],
+                  })
+                }
+              />
+            ) : personality === "featured" && blocksRep?.blocks ? (
+              <FeaturedResumeView
+                blocks={blocksRep.blocks}
+                onInspectProof={setSelectedProofClaim}
+              />
+            ) : (
+              <>
           {/* 1. Identity Block */}
           <div className={styles.headerBlock}>
             <div className={styles.nameRow}>

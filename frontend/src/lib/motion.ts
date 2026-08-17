@@ -103,6 +103,11 @@ export const personalityVariants: Record<string, Variants> = {
     animate: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: easeOut } },
     exit: { opacity: 0, scale: 0.99, y: -10, transition: { duration: 0.15 } },
   },
+  ats_clean: {
+    initial: { opacity: 0 },
+    animate: { opacity: 1, transition: { duration: 0.2 } },
+    exit: { opacity: 0, transition: { duration: 0.1 } },
+  },
 };
 
 export const sidebarAssemble: Variants = {

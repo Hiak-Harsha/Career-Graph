@@ -240,6 +240,7 @@ export interface ResumeProject {
   repository_url?: string;
   narrative: string;
   evidence_links: ResumeEvidenceLink[];
+  evidence_claims?: EvidenceClaimItem[];
   selected_reasons?: string[];
   included?: boolean;
   custom_bullets?: string[];
@@ -256,14 +257,17 @@ export interface ResumeData {
   claims: string[];
   skills: string[];
   experience?: Array<{
+    id?: string;
     company: string;
     role: string;
+    location?: string;
     start_date: string;
     end_date: string;
     description?: string;
     bullets?: string[];
   }>;
   education?: Array<{
+    id?: string;
     institution: string;
     degree: string;
     field_of_study?: string;
@@ -271,6 +275,7 @@ export interface ResumeData {
     end_year?: string;
   }>;
   certifications?: Array<{
+    id?: string;
     name: string;
     issuer: string;
     issue_date?: string;
@@ -281,6 +286,9 @@ export interface ResumeData {
     label?: string;
   }>;
   is_primary?: boolean;
+  resume_format?: "ats_clean" | "visual";
+  visible_sections?: string[];
+  section_order?: string[];
   evidence_coverage?: number; // 0–1
   claims_verified?: number;
   total_claims?: number;
@@ -288,7 +296,27 @@ export interface ResumeData {
   updated_at?: string;
 }
 
+export interface ResumeSaveRequest {
+  id?: string;
+  title?: string;
+  target_role?: string;
+  variant?: string;
+  resume_format?: ResumeFormat;
+  visible_sections?: string[];
+  section_order?: string[];
+  summary?: string;
+  skills?: string[];
+  claims?: string[];
+  projects?: ResumeData["projects"];
+  experience?: ResumeData["experience"];
+  education?: ResumeData["education"];
+  certifications?: ResumeData["certifications"];
+  links?: ResumeData["links"];
+}
+
 // ─── Resume Intelligence Engine Types ────────────────────────────────────────
+
+export type ResumeFormat = "ats_clean" | "visual";
 
 export type ResumePersonality =
   | "editorial"
@@ -370,6 +398,7 @@ export interface SignatureBlockPayload {
 export interface PositioningBlockPayload {
   statement?: string;
   evidence_strength?: string;
+  summary_bullets?: string[];
 }
 
 export interface EvidenceClaimItem {
@@ -409,8 +438,10 @@ export interface TrajectoryBlockPayload {
 
 export interface ExperienceBlockPayload {
   experiences?: Array<{
+    id?: string;
     company: string;
     role: string;
+    location?: string;
     start_date: string;
     end_date: string;
     description?: string;
@@ -420,6 +451,7 @@ export interface ExperienceBlockPayload {
 
 export interface EducationBlockPayload {
   educations?: Array<{
+    id?: string;
     institution: string;
     degree: string;
     field_of_study?: string;
@@ -430,6 +462,7 @@ export interface EducationBlockPayload {
 
 export interface CertificationsBlockPayload {
   certifications?: Array<{
+    id?: string;
     name: string;
     issuer: string;
     issue_date?: string;
@@ -459,6 +492,9 @@ export interface ResumeBlockItem {
 export interface ResumeBlockRepresentation {
   target_role: string;
   layout_personality: ResumePersonality;
+  resume_format?: ResumeFormat;
+  visible_sections?: string[];
+  section_order?: string[];
   positioning_statement: string;
   blocks: ResumeBlockItem[];
   evidence_coverage_rate: number;

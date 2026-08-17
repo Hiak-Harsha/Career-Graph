@@ -373,6 +373,7 @@ class Resume(Base):
     title = Column(String(255), nullable=False, default="Master Resume")
     target_role = Column(String(255), nullable=False, default="Software Engineer")
     variant = Column(String(50), nullable=False, default="visual")  # 'ats' or 'visual'
+    resume_format = Column(String(20), nullable=False, default="ats_clean")  # 'ats_clean' or 'visual'
     summary = Column(Text, nullable=False, default="")
     skills_json = Column(JSON, default=list)
     claims_json = Column(JSON, default=list)
@@ -381,6 +382,8 @@ class Resume(Base):
     education_json = Column(JSON, default=list)
     certifications_json = Column(JSON, default=list)
     links_json = Column(JSON, default=list)
+    visible_sections_json = Column(JSON, default=list)
+    section_order_json = Column(JSON, default=list)
     is_primary = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
@@ -417,6 +420,8 @@ class WorkExperience(Base):
     description = Column(Text, nullable=True)
     bullets = Column(JSON, default=list)
     is_current = Column(Boolean, default=False)
+    origin = Column(String(50), default="USER")  # 'USER' | 'AI_PROPOSED'
+    status = Column(String(50), default="user_confirmed")  # 'ai_suggested' | 'user_confirmed' | 'user_rejected'
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
@@ -435,6 +440,8 @@ class Education(Base):
     start_year = Column(String(20), nullable=True)
     end_year = Column(String(20), nullable=True)
     grade_or_gpa = Column(String(50), nullable=True)
+    origin = Column(String(50), default="USER")  # 'USER' | 'AI_PROPOSED'
+    status = Column(String(50), default="user_confirmed")  # 'ai_suggested' | 'user_confirmed' | 'user_rejected'
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
@@ -451,6 +458,8 @@ class Certification(Base):
     issuer = Column(String(255), nullable=False)
     issue_date = Column(String(50), nullable=True)
     credential_url = Column(String(500), nullable=True)
+    origin = Column(String(50), default="USER")  # 'USER' | 'AI_PROPOSED'
+    status = Column(String(50), default="user_confirmed")  # 'ai_suggested' | 'user_confirmed' | 'user_rejected'
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships

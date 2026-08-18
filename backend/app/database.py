@@ -12,7 +12,7 @@ if _backend_dir not in sys.path:
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from backend.app.config import DATABASE_URL
+from backend.app.config import DATABASE_URL, APP_ENV
 from backend.app.models import Base, Role
 
 # Use check_same_thread=False only for SQLite
@@ -23,11 +23,16 @@ if DATABASE_URL.startswith("sqlite"):
 else:
     try:
         engine = create_engine(DATABASE_URL)
-        # Eagerly test the connection to verify PostgreSQL is active
+        # Eagerly test the connection to verify database is active
         with engine.connect() as conn:
             pass
     except Exception as e:
-        print(f"Warning: Remote database connection failed ({e}). Falling back to local SQLite database.")
+        if APP_ENV in ("production", "prod", "staging"):
+            raise RuntimeError(
+                f"FATAL: Production database connection to '{DATABASE_URL}' failed: {e}. "
+                "Refusing silent fallback to local SQLite in non-development environment."
+            ) from e
+        print(f"Warning: Remote database connection failed ({e}). Falling back to local SQLite database for development.")
         DATABASE_URL = "sqlite:///./career_graph.db"
         engine = create_engine(
             DATABASE_URL, connect_args={"check_same_thread": False}
@@ -75,11 +80,13 @@ def _migrate_sqlite_columns():
 
 
 def init_db():
-    # Create all tables in database if they do not exist
-    Base.metadata.create_all(bind=engine)
-    
-    # Run column migrations for SQLite
-    _migrate_sqlite_columns()
+    # In production, schema migrations must be handled exclusively by Alembic (`alembic upgrade head`).
+    if APP_ENV in ("production", "prod", "staging"):
+        print("Production environment detected: Skipping runtime create_all() to enforce Alembic migration governance.")
+    else:
+        # Create all tables in local development / test database if they do not exist
+        Base.metadata.create_all(bind=engine)
+        _migrate_sqlite_columns()
     
     # Pre-populate default roles
     db = SessionLocal()

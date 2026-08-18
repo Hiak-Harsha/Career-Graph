@@ -482,12 +482,7 @@ export function ResumeView({
               (technicalDepthBlock?.clusters
                 ?.flatMap((c) => c.capabilities.split(/[·•,]+/))
                 .map((s) => s.trim())
-                .filter(Boolean) || [
-                "Python",
-                "Distributed Systems",
-                "FastAPI",
-                "TypeScript",
-              ])
+                .filter(Boolean) || [])
             }
             onChange={(skills) => {
               setEditedResume((prev: Partial<ResumeSaveRequest>) => ({ ...prev, skills }));
@@ -527,15 +522,15 @@ export function ResumeView({
                 resumeData={resumeData}
                 visibleSections={visibleSections}
                 sectionOrder={sectionOrder}
-                onInspectProof={(id, text) =>
+                onInspectProof={(id, text) => {
                   setSelectedProofClaim({
                     id,
                     claim: text,
-                    confidence: 1.0,
+                    confidence: 0,
                     status: "user_confirmed",
                     evidence: [],
-                  })
-                }
+                  });
+                }}
               />
             ) : personality === "featured" && blocksRep?.blocks ? (
               <FeaturedResumeView
@@ -548,7 +543,7 @@ export function ResumeView({
           <div className={styles.headerBlock}>
             <div className={styles.nameRow}>
               <h1 className={styles.candidateName}>
-                {identityBlock?.name || resumeData?.profile?.name || "Your Name"}
+                {identityBlock?.name || resumeData?.profile?.name || "Candidate"}
               </h1>
               <span className={styles.verifiedBadge}>
                 <ShieldCheck size={14} />
@@ -559,18 +554,24 @@ export function ResumeView({
               {identityBlock?.headline || `${selectedRole.toUpperCase()} · VERIFIED ENGINEER`}
             </p>
             <div className={styles.contactRow}>
-              <span className={styles.contactItem}>
-                <Mail size={13} />
-                <span>{identityBlock?.email || resumeData?.profile?.email || "your.email@example.com"}</span>
-              </span>
-              <span className={styles.contactItem}>
-                <MapPin size={13} />
-                <span>{identityBlock?.location || resumeData?.profile?.location || "San Francisco, CA"}</span>
-              </span>
-              <span className={styles.contactItem}>
-                <GithubIcon size={13} />
-                <span>github.com/{identityBlock?.github || resumeData?.profile?.github_username || "developer"}</span>
-              </span>
+              {(identityBlock?.email || resumeData?.profile?.email) && (
+                <span className={styles.contactItem}>
+                  <Mail size={13} />
+                  <span>{identityBlock?.email || resumeData?.profile?.email}</span>
+                </span>
+              )}
+              {(identityBlock?.location || resumeData?.profile?.location) && (
+                <span className={styles.contactItem}>
+                  <MapPin size={13} />
+                  <span>{identityBlock?.location || resumeData?.profile?.location}</span>
+                </span>
+              )}
+              {(identityBlock?.github || resumeData?.profile?.github_username) && (
+                <span className={styles.contactItem}>
+                  <GithubIcon size={13} />
+                  <span>github.com/{identityBlock?.github || resumeData?.profile?.github_username}</span>
+                </span>
+              )}
             </div>
           </div>
 

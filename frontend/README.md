@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Career Graph Frontend
 
-## Getting Started
+Production Next.js 16 (App Router + Turbopack) frontend for **Career Graph** — the evidence-backed career intelligence and living professional identity platform.
 
-First, run the development server:
+---
+
+## 1. Architecture & Capabilities
+
+- **Framework**: Next.js 16 with Turbopack bundler, React 19, TypeScript.
+- **Design System**: Modular CSS design tokens (`src/app/globals.css`), CSS Modules, zero ad-hoc styling utility sprawl, responsive layouts.
+- **Views**:
+  - `Overview / Graph`: Interactive Force Graph and Strata capability layer visualizations.
+  - `Work`: Selected work, Thought Lineage (`Ideas`), and Evidence Store with commit hashes.
+  - `Development`: Emerging domain trajectories, Skill depth metrics, and chronological Timeline.
+  - `Profiles & Representation`:
+    - **Living Portfolio**: Public view (`/p/[username]`) with verified case studies and proof drawers.
+    - **Resume Engine**: Dual-format (ATS Clean vector representation & Visual Editorial) with 10-second Recruiter Critique, Proof inspection, and 1-Click Gap Repair.
+    - **Recruiter Match**: 4-Dimension mathematical role-fit scoring (`35% capability`, `30% evidence`, `20% recency`, `15% depth`), custom JD decomposition, and "Why We Think This" explainability cards.
+    - **Review Queue**: Staged review system ensuring zero unconfirmed AI inferences become profile facts.
+
+---
+
+## 2. Environment Configuration
+
+Create `.env.local` inside `frontend/`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 3. Development & Verification
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Install Dependencies
+```bash
+npm install
+```
 
-## Learn More
+### Run Local Dev Server
+```bash
+npm run dev
+# App will run at http://localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+### TypeScript Typecheck
+```bash
+npx tsc --noEmit
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Run Frontend Unit Tests
+```bash
+npx vitest run
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Production Build
+```bash
+npm run build
+```
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

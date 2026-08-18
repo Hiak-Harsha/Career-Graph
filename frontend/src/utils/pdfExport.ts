@@ -242,12 +242,16 @@ function renderAtsCleanLayout(
   y += 18;
 
   // Title / Headline
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10.5);
-  doc.setTextColor(51, 65, 85); // slate-700
-  const headline = `${(resumeData.target_role || "LEAD SOFTWARE ENGINEER").toUpperCase()}  |  DISTRIBUTED SYSTEMS · CLOUD ARCHITECTURE`;
-  doc.text(headline, margin, y);
-  y += 14;
+  const headline = resumeData.target_role 
+    ? resumeData.target_role.toUpperCase() 
+    : (resumeData.profile?.headline || "");
+  if (headline) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(51, 65, 85); // slate-700
+    doc.text(headline, margin, y);
+    y += 14;
+  }
 
   // Contact line
   doc.setFont("helvetica", "normal");
@@ -632,62 +636,60 @@ function renderFeaturedLayout(
   }
 
   // 2. Core Skills
-  rightY += 4;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text("CORE COMPETENCIES", rightColX, rightY);
-  doc.setDrawColor(226, 232, 240);
-  doc.line(rightColX, rightY + 3, rightColX + rightColWidth, rightY + 3);
-  rightY += 14;
-
-  const skillsList = resumeData.skills?.slice(0, 8) || [
-    "Python",
-    "Distributed Systems",
-    "FastAPI",
-    "TypeScript",
-    "Docker",
-    "Graph Algorithms",
-  ];
-  let skillPillX = rightColX;
-  for (const s of skillsList) {
-    const sWidth = doc.getTextWidth(s) + 12;
-    if (skillPillX + sWidth > rightColX + rightColWidth) {
-      skillPillX = rightColX;
-      rightY += 16;
-    }
-    doc.setFillColor(241, 245, 249);
-    doc.roundedRect(skillPillX, rightY, sWidth, 12, 6, 6, "F");
+  // 2. Core Skills
+  const skillsList = resumeData.skills?.slice(0, 10) || [];
+  if (skillsList.length > 0) {
+    rightY += 4;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.5);
-    doc.setTextColor(51, 65, 85);
-    doc.text(s, skillPillX + 6, rightY + 8.5);
-    skillPillX += sWidth + 4;
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text("CORE COMPETENCIES", rightColX, rightY);
+    doc.setDrawColor(226, 232, 240);
+    doc.line(rightColX, rightY + 3, rightColX + rightColWidth, rightY + 3);
+    rightY += 14;
+
+    let skillPillX = rightColX;
+    for (const s of skillsList) {
+      const sWidth = doc.getTextWidth(s) + 12;
+      if (skillPillX + sWidth > rightColX + rightColWidth) {
+        skillPillX = rightColX;
+        rightY += 16;
+      }
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(skillPillX, rightY, sWidth, 12, 6, 6, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.5);
+      doc.setTextColor(51, 65, 85);
+      doc.text(s, skillPillX + 6, rightY + 8.5);
+      skillPillX += sWidth + 4;
+    }
+    rightY += 24;
   }
-  rightY += 24;
 
   // 3. Currently Exploring (Ground truth horizons)
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text("CURRENTLY EXPLORING", rightColX, rightY);
-  doc.setDrawColor(16, 185, 129);
-  doc.line(rightColX, rightY + 3, rightColX + rightColWidth, rightY + 3);
-  rightY += 14;
-
-  const horizons = ["Distributed AI Systems", "Verified Graph Solvers", "Compiler Optimization"];
-  for (const h of horizons) {
-    doc.setFillColor(236, 253, 245);
-    doc.roundedRect(rightColX, rightY, rightColWidth, 24, 3, 3, "F");
+  const horizons = (resumeData.emerging_domains || []).slice(0, 3);
+  if (horizons.length > 0) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(5, 150, 105);
-    doc.text(h, rightColX + 8, rightY + 11);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text("Active empirical research trajectory", rightColX + 8, rightY + 19);
-    rightY += 28;
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text("CURRENTLY EXPLORING", rightColX, rightY);
+    doc.setDrawColor(16, 185, 129);
+    doc.line(rightColX, rightY + 3, rightColX + rightColWidth, rightY + 3);
+    rightY += 14;
+
+    for (const h of horizons) {
+      doc.setFillColor(236, 253, 245);
+      doc.roundedRect(rightColX, rightY, rightColWidth, 24, 3, 3, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(5, 150, 105);
+      doc.text(h, rightColX + 8, rightY + 11);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("Active empirical research trajectory", rightColX + 8, rightY + 19);
+      rightY += 28;
+    }
   }
 }
 

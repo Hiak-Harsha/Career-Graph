@@ -455,7 +455,7 @@ class Certification(Base):
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
-    issuer = Column(String(255), nullable=False)
+    issuer = Column(String(255), nullable=True)
     issue_date = Column(String(50), nullable=True)
     credential_url = Column(String(500), nullable=True)
     origin = Column(String(50), default="USER")  # 'USER' | 'AI_PROPOSED'

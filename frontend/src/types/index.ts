@@ -289,6 +289,7 @@ export interface ResumeData {
   resume_format?: "ats_clean" | "visual";
   visible_sections?: string[];
   section_order?: string[];
+  emerging_domains?: string[];
   evidence_coverage?: number; // 0–1
   claims_verified?: number;
   total_claims?: number;
@@ -330,6 +331,7 @@ export interface AchievementItem {
   icon: string;
   title: string;
   description: string;
+  confidence?: number;
   claim_id?: string;
 }
 
@@ -351,6 +353,16 @@ export interface DomainSignatureEdge {
   relationship: string;
 }
 
+export interface RoleFitBreakdown {
+  required_capability_coverage: number;
+  direct_evidence_coverage: number;
+  recent_relevance: number;
+  demonstrated_depth: number;
+  overall_fit: string;
+  fit_score: number;
+  is_sufficient_evidence: boolean;
+}
+
 export interface ProfessionalIdentity {
   user_id: string;
   candidate_name: string;
@@ -359,13 +371,15 @@ export interface ProfessionalIdentity {
   emerging_domains: string[];
   strong_capabilities: string[];
   current_trajectory: string;
-  evidence_strength: "High" | "Moderate" | "Developing";
-  research_orientation: "Increasing" | "Stable" | "Experimental";
+  evidence_strength: "High" | "Moderate" | "Developing" | "Insufficient Evidence" | string;
+  research_orientation: "Increasing" | "Stable" | "Experimental" | "Unobserved" | string;
   project_style: string;
   signature_nodes: DomainSignatureNode[];
   signature_edges: DomainSignatureEdge[];
   total_verified_claims: number;
   total_repositories: number;
+  is_sufficient_evidence?: boolean;
+  evidence_coverage?: number;
 }
 
 export interface ResumeStrategy {
@@ -377,8 +391,11 @@ export interface ResumeStrategy {
   skills_to_emphasize: string[];
   evidence_priorities: string[];
   weak_areas: string[];
+  unsupported_capabilities?: string[];
   suggested_layout: ResumePersonality;
   role_alignment_score: number;
+  role_fit?: RoleFitBreakdown;
+  is_sufficient_evidence?: boolean;
 }
 
 export interface IdentityBlockPayload {
@@ -429,6 +446,7 @@ export interface TechnicalDepthCluster {
 
 export interface TechnicalDepthBlockPayload {
   clusters?: TechnicalDepthCluster[];
+  skills?: string[];
 }
 
 export interface TrajectoryBlockPayload {
@@ -471,30 +489,17 @@ export interface CertificationsBlockPayload {
 }
 
 export interface ResumeBlockItem {
-  block_type:
-    | "identity"
-    | "signature"
-    | "positioning"
-    | "selected_work"
-    | "technical_depth"
-    | "trajectory"
-    | "experience"
-    | "education"
-    | "certifications"
-    | "achievements";
+  block_type: string;
   title: string;
   subtitle?: string;
   order: number;
-  content_payload: Record<string, unknown>;
+  content_payload: Record<string, any>;
 }
-
 
 export interface ResumeBlockRepresentation {
   target_role: string;
   layout_personality: ResumePersonality;
-  resume_format?: ResumeFormat;
-  visible_sections?: string[];
-  section_order?: string[];
+  resume_format?: "ats_clean" | "visual";
   positioning_statement: string;
   blocks: ResumeBlockItem[];
   evidence_coverage_rate: number;
@@ -504,7 +509,7 @@ export interface ResumeBlockRepresentation {
 
 export interface ReadinessDimension {
   dimension: string;
-  rating: "Strong" | "Moderate" | "Developing";
+  rating: "Strong" | "Moderate" | "Developing" | string;
   score: number;
   insight: string;
 }
@@ -512,7 +517,7 @@ export interface ReadinessDimension {
 export interface ResumeCritique {
   target_role: string;
   readiness_dimensions: ReadinessDimension[];
-  overall_readiness: "Strong" | "Moderate" | "Developing";
+  overall_readiness: "Strong" | "Moderate" | "Developing" | string;
   recruiter_attention_hierarchy: {
     "0_to_3s": string;
     "3_to_8s": string;
@@ -537,19 +542,24 @@ export interface ResumeValidation {
 export interface CriteriaMatch {
   item_name: string;
   type: string;
-  status: "strong" | "moderate" | "weak" | "missing";
+  status: "strong" | "moderate" | "weak" | "no_evidence" | "missing" | string;
   details?: string;
+  evidence_count?: number;
+  freshness?: "ACTIVE" | "HISTORICAL" | "DORMANT" | string;
 }
 
 export interface RecruiterData {
   candidate_name?: string;
   role_name: string;
-  overall_match: "Strong Match" | "Moderate Match" | "Developing Match" | "Weak Match";
+  overall_match: "Strong Match" | "Moderate Match" | "Developing Match" | "Weak Match" | "Insufficient Evidence" | string;
   why_text?: string;
   strengths: string[];
   gaps: string[];
   criteria_matches: CriteriaMatch[];
   evidence_backed_claims: Claim[];
+  role_fit?: RoleFitBreakdown;
+  proven_capabilities?: string[];
+  no_evidence_capabilities?: string[];
   domain_strengths?: Array<{ domain: string; level: string }>;
   demonstrated_skills?: string[];
   evidence_gaps?: string[];

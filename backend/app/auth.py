@@ -23,14 +23,15 @@ from sqlalchemy.orm import Session
 
 from backend.app.config import (
     JWT_SECRET, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES,
+    TOKEN_ENCRYPTION_KEY,
     GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI,
     ALLOW_ANONYMOUS_DEV_LOGIN, APP_ENV
 )
 from backend.app.database import get_db
 from backend.app.models import User
 
-# Derive a 32-byte Fernet key from JWT_SECRET
-key_bytes = hashlib.sha256(JWT_SECRET.encode()).digest()
+# Derive a 32-byte Fernet key from dedicated TOKEN_ENCRYPTION_KEY
+key_bytes = hashlib.sha256(TOKEN_ENCRYPTION_KEY.encode()).digest()
 fernet_key = base64.urlsafe_b64encode(key_bytes)
 fernet = Fernet(fernet_key)
 
@@ -42,11 +43,15 @@ def encrypt_token(token: str) -> str:
 def decrypt_token(token: str) -> str:
     if not token:
         return token
-    try:
-        return fernet.decrypt(token.encode()).decode()
-    except Exception:
-        # Fallback if decryption fails (e.g., token was stored as plaintext before)
-        return token
+    if token.startswith("gAAAAA"):
+        try:
+            return fernet.decrypt(token.encode()).decode()
+        except Exception as e:
+            if APP_ENV not in ("development", "test"):
+                raise ValueError("Corrupted or invalid encrypted token ciphertext.") from e
+            return token
+    # Legacy plaintext token fallback (for development/migration)
+    return token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 

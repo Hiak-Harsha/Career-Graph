@@ -5,7 +5,8 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black.svg?style=flat&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19.2-61DAFB.svg?style=flat&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg?style=flat&logo=typescript)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/Tests-58%2F58%20Passed-success.svg?style=flat)]()
+[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-29%2F29%20Passed-success.svg?style=flat)]()
+[![Production Build](https://img.shields.io/badge/Production%20Build-Passing-success.svg?style=flat)]()
 
 **Career Graph** is an evidence-led career intelligence platform that connects your GitHub repositories, code commits, and verified projects into a dynamic, interactive knowledge graph. It transforms verified work into a **Living Portfolio**, an **Interactive Living Career Graph with Telemetry**, a **Resume Intelligence Engine with AI Polish**, a **Thought Lineage & Idea Incubator**, and an automated **Recruiter Matching Engine**.
 
@@ -168,36 +169,33 @@ python cli.py resume generate --role "Backend Systems Engineer"
 
 ## 🧪 Test Suites & Quality Assurance
 
-Career Graph is validated with comprehensive automated test suites across both layers:
+Career Graph is validated with comprehensive automated test suites and production build tooling:
 
-### Backend Pytest Suite (19/19 Tests Passing)
+### Backend Pytest Suite (29/29 Tests Passing - 100%)
 ```bash
 cd backend
-python -m pytest tests/ -v
+python -m pytest tests/test_api.py -v
 ```
 
 Tests verify:
+- Zero-fabrication identity model & anti-hallucination sanitization
+- Event Significance Engine (LOW/MEDIUM/HIGH/CAREER_SIGNIFICANT)
+- Career Change Intelligence & Graph Delta (`GET /api/career/delta`)
+- Custom Job Description dynamic capability extraction (`POST /api/recruiter/match-jd`)
 - JWT Bearer Authentication & 401 unauthenticated security rejection
 - Nested UUID & DateTime JSON serialization across resume creation & updates
 - Public portfolio identifier scoping & demo isolation
 - Idea maturity persistence, lineage notes, and auto-drafting
-- Dynamic 6-dimensional recruiter candidate critique
+- Dynamic 4-dimensional recruiter candidate critique and explainability cards
 - Full CRUD operations for Work Experience, Education, Certifications, and Social Links
 - Dual-variant vector resume generation & AI grammar improvements
 
-### Frontend Vitest Suite (39/39 Tests Passing)
+### Frontend Build & Typecheck
 ```bash
 cd frontend
-npx vitest run --pool=threads
+npx tsc --noEmit     # 0 errors
+npm run build       # Next.js Turbopack production build succeeds
 ```
-
-Tests verify:
-- `CareerGraphView`: Flow telemetry, focus/dim isolation, growth journey replay, and cross-domain legend
-- `ResumeView`: Block rendering, 5 layout switches, interactive editing, certifications, and AI polish
-- `PortfolioView`: Case studies, credentials management, proof links, and public link sharing
-- `CandidateIntelligence`: Role matching, evidence drawers, and breakdown scoring
-- `ReviewQueue`: Human-in-the-loop technology confirmation & rejection with compound keying
-- `GitHubAuthModal`: PAT authentication & sync workflows
 
 ---
 

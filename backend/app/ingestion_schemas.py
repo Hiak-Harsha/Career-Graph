@@ -21,7 +21,7 @@ class ExtractedEducation(BaseModel):
 
 class ExtractedCertification(BaseModel):
     name: str = Field(description="Certification or credential name")
-    issuer: str = Field(description="Issuing authority or organization (e.g. AWS, Coursera, Google)")
+    issuer: Optional[str] = Field(default=None, description="Issuing authority or organization (e.g. AWS, Coursera, Google)")
     issue_date: Optional[str] = Field(default=None, description="Issue date or year")
 
 

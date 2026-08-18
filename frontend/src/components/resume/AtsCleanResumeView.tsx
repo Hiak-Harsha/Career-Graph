@@ -49,8 +49,8 @@ export function AtsCleanResumeView({
   const achievements = getBlock<AchievementsBlockPayload>("achievements");
 
   // Fallback / merged candidate profile info
-  const name = identity?.name || resumeData?.profile?.name || "Senior Software Engineer";
-  const headline = identity?.headline || resumeData?.profile?.headline || resumeData?.target_role || "Lead Software Engineer";
+  const name = identity?.name || resumeData?.profile?.name || "Candidate Profile";
+  const headline = identity?.headline || resumeData?.profile?.headline || resumeData?.target_role || "";
   const email = identity?.email || resumeData?.profile?.email || "";
   const phone = resumeData?.profile?.phone || "";
   const location = identity?.location || resumeData?.profile?.location || "";

@@ -306,20 +306,34 @@ class AIImproveResponse(BaseModel):
     suggestions: Optional[List[str]] = []
 
 # Recruiter Role Match Schemas
+class RoleFitBreakdown(BaseModel):
+    required_capability_coverage: float  # 0.0 - 100.0%
+    direct_evidence_coverage: float  # 0.0 - 100.0%
+    recent_relevance: float  # 0.0 - 100.0%
+    demonstrated_depth: float  # 0.0 - 100.0%
+    overall_fit: str  # 'Strong Evidence', 'Moderate Evidence', 'Developing', 'Insufficient Evidence'
+    fit_score: int  # 0 - 100
+    is_sufficient_evidence: bool = True
+
 class CriteriaMatch(BaseModel):
     item_name: str
     type: str  # 'skill' or 'domain'
-    status: str  # 'strong', 'moderate', 'weak', 'missing'
+    status: str  # 'strong', 'moderate', 'weak', 'no_evidence'
     details: str
+    evidence_count: int = 0
+    freshness: Optional[str] = "ACTIVE"  # 'ACTIVE', 'HISTORICAL', 'DORMANT'
 
 class RecruiterMatchResponse(BaseModel):
     role_name: str
-    overall_match: str  # 'Strong Match', 'Moderate Match', 'Developing Match'
+    overall_match: str  # 'Strong Evidence', 'Moderate Evidence', 'Developing', 'Insufficient Evidence'
     why_text: str
     strengths: List[str]
     gaps: List[str]
     criteria_matches: List[CriteriaMatch]
     evidence_backed_claims: List[ClaimResponse]
+    role_fit: Optional[RoleFitBreakdown] = None
+    proven_capabilities: List[str] = []
+    no_evidence_capabilities: List[str] = []
 
 # Auth Schemas
 class Token(BaseModel):
@@ -352,13 +366,15 @@ class ProfessionalIdentityResponse(BaseModel):
     emerging_domains: List[str]
     strong_capabilities: List[str]
     current_trajectory: str
-    evidence_strength: str  # 'High', 'Moderate', 'Developing'
-    research_orientation: str  # 'Increasing', 'Stable', 'Experimental'
+    evidence_strength: str  # 'High', 'Moderate', 'Developing', 'Insufficient Evidence'
+    research_orientation: str  # 'Increasing', 'Stable', 'Experimental', 'Unobserved'
     project_style: str
     signature_nodes: List[DomainSignatureNode]
     signature_edges: List[DomainSignatureEdge]
     total_verified_claims: int
     total_repositories: int
+    is_sufficient_evidence: bool = True
+    evidence_coverage: float = 1.0
 
 class ResumeStrategyRequest(BaseModel):
     target_role: str
@@ -375,8 +391,11 @@ class ResumeStrategyResponse(BaseModel):
     skills_to_emphasize: List[str]
     evidence_priorities: List[str]
     weak_areas: List[str]
+    unsupported_capabilities: List[str] = []
     suggested_layout: str  # 'editorial', 'technical', 'modern_professional', 'research', 'executive'
     role_alignment_score: float  # 0.0 - 1.0
+    role_fit: Optional[RoleFitBreakdown] = None
+    is_sufficient_evidence: bool = True
 
 class PositioningBlockPayload(BaseModel):
     statement: str
@@ -443,4 +462,9 @@ class ImproveRepresentationRequest(BaseModel):
     target_role: str
     selected_gaps_to_fix: List[str]
     layout_personality: Optional[str] = "modern_professional"
+
+class CustomJobDescriptionMatchRequest(BaseModel):
+    title: Optional[str] = "Custom Target Role"
+    job_description_text: str
+
 

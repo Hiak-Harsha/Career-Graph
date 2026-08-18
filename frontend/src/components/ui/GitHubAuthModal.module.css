@@ -214,3 +214,54 @@
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
+
+.onboardingSteps {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+  text-align: left;
+}
+
+.stepsTitle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+}
+
+.stepGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+}
+
+.stepItem {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+}
+
+.stepNum {
+  font-family: monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.controlNote {
+  margin-top: 0.75rem;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-style: italic;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 0.5rem;
+}
+

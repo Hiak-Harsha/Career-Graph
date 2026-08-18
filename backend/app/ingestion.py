@@ -82,7 +82,9 @@ def resolve_source_text(req: ProfileIngestRequest, current_user: User) -> str:
 
     if req.source_type in ("github", "github_readme"):
         token = getattr(current_user, "github_access_token", None) or os.getenv("GITHUB_TOKEN", "")
-        username = getattr(current_user, "github_username", None) or "developer"
+        username = getattr(current_user, "github_username", None)
+        if not username:
+            raise HTTPException(status_code=400, detail="No GitHub account connected on user profile to fetch README from.")
         readme = fetch_github_profile_readme(token, username)
         if readme:
             return readme
@@ -96,7 +98,8 @@ def resolve_source_text(req: ProfileIngestRequest, current_user: User) -> str:
 # Deterministic Fallback Parser (heuristic-based for testing / offline environments)
 
 def _heuristic_extract_profile(raw_text: str) -> ExtractedProfile:
-    """Deterministic heuristic extraction when LLM keys are absent."""
+    """Deterministic heuristic extraction when LLM keys are absent. Never fabricates facts."""
+    import re
     lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
     
     work_experiences: List[ExtractedWorkExperience] = []
@@ -126,55 +129,53 @@ def _heuristic_extract_profile(raw_text: str) -> ExtractedProfile:
                     work_experiences.append(ExtractedWorkExperience(
                         company=curr_company,
                         role=curr_role,
-                        start_date="2022",
-                        end_date="Present",
-                        bullets=curr_bullets or ["Executed core software engineering deliverables."]
+                        start_date="",
+                        end_date="",
+                        bullets=curr_bullets
                     ))
                     curr_bullets = []
                 parts = line.split(" at ") if " at " in line else line.split(" | ")
                 curr_role = parts[0].strip()
-                curr_company = parts[1].strip() if len(parts) > 1 else "Tech Co"
+                curr_company = parts[1].strip() if len(parts) > 1 else ""
             elif line.startswith(("-", "•", "*")):
                 curr_bullets.append(line.lstrip("-•* ").strip())
         elif current_section == "education":
-            if any(deg in line for deg in ["B.S.", "B.Tech", "M.S.", "Bachelor", "Master", "Degree", "Computer Science"]):
-                educations.append(ExtractedEducation(
-                    institution=line.split(",")[0].strip() if "," in line else line.strip(),
-                    degree="Bachelor of Science",
-                    field_of_study="Computer Science",
-                    start_year="2018",
-                    end_year="2022"
-                ))
+            years = re.findall(r"\b(19\d\d|20\d\d)\b", line)
+            degree_str = ""
+            for d_token in ["B.S.", "B.Tech", "M.S.", "M.Tech", "Bachelor", "Master", "Ph.D", "PhD", "Associate"]:
+                if d_token.lower() in line.lower():
+                    degree_str = d_token
+                    break
+            educations.append(ExtractedEducation(
+                institution=line.split(",")[0].strip() if "," in line else line.strip(),
+                degree=degree_str or "Degree",
+                field_of_study="",
+                start_year=years[0] if len(years) > 1 else (years[0] if years else None),
+                end_year=years[1] if len(years) > 1 else None
+            ))
         elif current_section == "certifications":
             if len(line) > 3:
+                parts = [p.strip() for p in line.split(",") if p.strip()]
+                cert_name = parts[0] if parts else line.strip()
+                cert_issuer = parts[1] if len(parts) > 1 else None
+                cert_date = parts[2] if len(parts) > 2 else None
                 certifications.append(ExtractedCertification(
-                    name=line.strip(),
-                    issuer="Industry Authority",
-                    issue_date="2023"
+                    name=cert_name,
+                    issuer=cert_issuer,
+                    issue_date=cert_date
                 ))
 
     if curr_company and curr_role:
         work_experiences.append(ExtractedWorkExperience(
             company=curr_company,
             role=curr_role,
-            start_date="2022",
-            end_date="Present",
-            bullets=curr_bullets or ["Executed core software engineering deliverables."]
-        ))
-
-    # If heuristics found nothing, build structured defaults from text summary
-    if not work_experiences and not educations and not certifications:
-        work_experiences.append(ExtractedWorkExperience(
-            company="Technology Organization",
-            role="Software Engineer",
-            location="Remote",
-            start_date="2021",
-            end_date="Present",
-            bullets=[line[:120] for line in lines[:3]] or ["Engineered backend distributed systems."]
+            start_date="",
+            end_date="",
+            bullets=curr_bullets
         ))
 
     return ExtractedProfile(
-        headline=lines[0] if lines else "Software Engineer",
+        headline=lines[0] if lines else None,
         work_experiences=work_experiences,
         educations=educations,
         certifications=certifications,

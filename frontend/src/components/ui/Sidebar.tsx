@@ -39,34 +39,36 @@ type NavSection = {
 
 const NAV_SECTIONS: NavSection[] = [
   {
+    label: "Overview",
     items: [
-      { id: "dashboard", label: "Overview", icon: LayoutDashboard },
-      { id: "strata", label: "Strata Core", icon: Layers },
-      { id: "portfolio", label: "Living Portfolio", icon: Globe },
       { id: "graph", label: "Career Graph", icon: Network },
+      { id: "dashboard", label: "Intelligence", icon: LayoutDashboard },
+      { id: "strata", label: "Capability Layers", icon: Layers },
     ],
   },
   {
     label: "Work",
     items: [
       { id: "projects", label: "Projects", icon: FolderGit2 },
-      { id: "ideas", label: "Ideas", icon: Lightbulb },
-      { id: "review", label: "Review", icon: CheckSquare, showBadge: true },
+      { id: "ideas", label: "Ideas & Lineage", icon: Lightbulb },
+      { id: "evidence", label: "Evidence Store", icon: ShieldCheck },
     ],
   },
   {
+    label: "Development",
     items: [
       { id: "domains", label: "Domains", icon: Compass },
-      { id: "skills", label: "Skills", icon: Award },
-      { id: "evidence", label: "Evidence", icon: ShieldCheck },
+      { id: "skills", label: "Skills & Depth", icon: Award },
+      { id: "timeline", label: "Timeline", icon: History },
     ],
   },
   {
-    label: "Profiles",
+    label: "Profiles & Representation",
     items: [
-      { id: "resume", label: "Resume", icon: FileText },
-      { id: "recruiter", label: "Recruiter view", icon: UserCheck },
-      { id: "timeline", label: "Timeline", icon: History },
+      { id: "portfolio", label: "Living Portfolio", icon: Globe },
+      { id: "resume", label: "Resume Engine", icon: FileText },
+      { id: "recruiter", label: "Recruiter View", icon: UserCheck },
+      { id: "review", label: "Review Queue", icon: CheckSquare, showBadge: true },
     ],
   },
 ];

@@ -251,6 +251,34 @@ export function ResumeStrategyDrawer({
               {/* Tab 2: Resume Strategy */}
               {activeTab === "strategy" && strategy && (
                 <>
+                  {/* Mathematical Role Fit Breakdown */}
+                  {strategy.role_fit && strategy.role_fit.is_sufficient_evidence && (
+                    <div className={styles.sectionCard}>
+                      <h3 className={styles.sectionTitle}>
+                        <ShieldCheck size={15} color="#10b981" />
+                        <span>Mathematical Role Fit Formulation ({strategy.role_fit.fit_score}%)</span>
+                      </h3>
+                      <div className={styles.metaGrid}>
+                        <div className={styles.metaItem}>
+                          <span className={styles.metaLabel}>Required Capabilities</span>
+                          <span className={styles.metaValue}>{Math.round(strategy.role_fit.required_capability_coverage)}%</span>
+                        </div>
+                        <div className={styles.metaItem}>
+                          <span className={styles.metaLabel}>Direct Evidence</span>
+                          <span className={styles.metaValue}>{Math.round(strategy.role_fit.direct_evidence_coverage)}%</span>
+                        </div>
+                        <div className={styles.metaItem}>
+                          <span className={styles.metaLabel}>Recent Relevance</span>
+                          <span className={styles.metaValue}>{Math.round(strategy.role_fit.recent_relevance)}%</span>
+                        </div>
+                        <div className={styles.metaItem}>
+                          <span className={styles.metaLabel}>Demonstrated Depth</span>
+                          <span className={styles.metaValue}>{Math.round(strategy.role_fit.demonstrated_depth)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className={styles.sectionCard}>
                     <h3 className={styles.sectionTitle}>
                       <Target size={15} color="#60a5fa" />
@@ -287,7 +315,22 @@ export function ResumeStrategyDrawer({
                     </div>
                   </div>
 
-                  {strategy.weak_areas.length > 0 && (
+                  {strategy.unsupported_capabilities && strategy.unsupported_capabilities.length > 0 && (
+                    <div className={styles.sectionCard}>
+                      <h3 className={styles.sectionTitle} style={{ color: "#94a3b8" }}>
+                        <span>No Evidence Detected in Graph</span>
+                      </h3>
+                      <div className={styles.tagList}>
+                        {strategy.unsupported_capabilities.map((w) => (
+                          <span key={w} className={styles.weakTag} style={{ background: "rgba(148, 163, 184, 0.1)", color: "#cbd5e1", borderColor: "rgba(148, 163, 184, 0.25)" }}>
+                            {w}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {strategy.weak_areas && strategy.weak_areas.length > 0 && (
                     <div className={styles.sectionCard}>
                       <h3 className={styles.sectionTitle} style={{ color: "#f87171" }}>
                         <span>Unevidenced & Gaps</span>

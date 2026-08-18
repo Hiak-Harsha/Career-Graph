@@ -7,10 +7,14 @@ load_dotenv()
 # App configs
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 JWT_SECRET = os.getenv("JWT_SECRET", "super_secret_jwt_signing_key_change_me_in_prod")
+TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "super_secret_token_encryption_key_distinct_change_me")
+GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 
-if APP_ENV != "development" and JWT_SECRET in ("super_secret_jwt_signing_key_change_me_in_prod", "", "change_me"):
+if APP_ENV not in ("development", "test") and JWT_SECRET in ("super_secret_jwt_signing_key_change_me_in_prod", "", "change_me"):
     raise ValueError("JWT_SECRET must be set to a secure unique key in non-development environments!")
 
+if APP_ENV not in ("development", "test") and TOKEN_ENCRYPTION_KEY in ("super_secret_token_encryption_key_distinct_change_me", "", "change_me"):
+    raise ValueError("TOKEN_ENCRYPTION_KEY must be set to a dedicated secure unique key in non-development environments!")
 
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 1 week

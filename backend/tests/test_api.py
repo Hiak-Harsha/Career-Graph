@@ -868,6 +868,287 @@ def test_ingest_profile_idempotency_caching(client, db):
     assert res2.json()["status"] == "success"
 
 
+def test_empty_graph_identity_no_defaults(db):
+    """Asserts that a brand new candidate with zero projects/skills returns is_sufficient_evidence=False and zero fake default skills."""
+    from backend.app.models import User
+    from backend.app.intelligence.identity_engine import compute_candidate_professional_identity
+    import uuid
+
+    empty_user = User(
+        id=uuid.uuid4(),
+        github_username="brand_new_developer_999",
+        name="Empty Graph Candidate",
+        email="empty@example.com"
+    )
+    db.add(empty_user)
+    db.commit()
+
+    identity = compute_candidate_professional_identity(empty_user, db)
+    assert identity.is_sufficient_evidence is False
+    assert identity.primary_domains == []
+    assert identity.emerging_domains == []
+    assert identity.strong_capabilities == []
+    assert identity.total_repositories == 0
+    assert identity.total_verified_claims == 0
+    assert "Insufficient evidence" in identity.current_trajectory
+
+
+def test_mathematical_role_fit_formulation(client, db):
+    """Asserts that RoleFitBreakdown metrics strictly obey defined mathematical bounds and logic."""
+    from backend.app.models import User
+    from backend.app.intelligence.recruiter_engine import compute_mathematical_role_fit
+
+    user = db.query(User).first()
+    assert user is not None
+
+    role_fit, criteria, proven, partial, no_evidence = compute_mathematical_role_fit(user, "AI / ML Engineer", db)
+    
+    assert 0.0 <= role_fit.required_capability_coverage <= 100.0
+    assert 0.0 <= role_fit.direct_evidence_coverage <= 100.0
+    assert 0.0 <= role_fit.recent_relevance <= 100.0
+    assert 0.0 <= role_fit.demonstrated_depth <= 100.0
+    assert 0 <= role_fit.fit_score <= 100
+    assert role_fit.overall_fit in ["Strong Match", "Moderate Match", "Developing Match", "Insufficient Evidence"]
+    assert role_fit.is_sufficient_evidence is True
+
+    # Check 3-state partitioning
+    for c in criteria:
+        assert c.status in ["strong", "moderate", "no_evidence"]
+        assert c.freshness in ["ACTIVE", "HISTORICAL", "DORMANT"]
+
+
+def test_claim_anti_fabrication_sanitization(client):
+    """Asserts that semantic validator catches and sanitizes fake metric assertions like 'improved by 40%'."""
+    validate_payload = {
+        "target_role": "Backend Systems Engineer",
+        "blocks": [
+            {
+                "block_type": "positioning",
+                "title": "Positioning",
+                "order": 1,
+                "content_payload": {
+                    "statement": "Engineered high-throughput backend services and improved by 40% system latency."
+                }
+            },
+            {
+                "block_type": "selected_work",
+                "title": "Selected Work",
+                "order": 2,
+                "content_payload": {
+                    "projects": [
+                        {
+                            "title": "Unverified Ghost Project",
+                            "evidence_claims": [
+                                {"claim": "Invented brand new quantum algorithm without repository commits"}
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    res = client.post("/api/resume/validate", json=validate_payload)
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["is_valid"] is False
+    assert len(data["fabricated_metrics_detected"]) >= 1
+    assert "improved by 40%" in data["fabricated_metrics_detected"][0].lower()
+    assert len(data["unverified_claims"]) >= 1
+    
+    # Verify sanitized output
+    sanitized_statement = data["sanitized_blocks"][0]["content_payload"]["statement"]
+    assert "40%" not in sanitized_statement
+
+
+def test_custom_job_description_matching(client):
+    """Asserts that POST /api/recruiter/match-jd accurately decomposes pasted JD text and matches candidate graph."""
+    jd_payload = {
+        "title": "Staff ML Infrastructure Engineer",
+        "job_description_text": """
+        We are seeking a Staff ML Infrastructure Engineer with strong Python and PyTorch expertise.
+        Experience with FastAPI microservices, Docker containerization, and distributed systems.
+        Bonus points for GraphQL and Kubernetes experience.
+        """
+    }
+    res = client.post("/api/recruiter/match-jd", json=jd_payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["role_name"] == "Staff ML Infrastructure Engineer"
+    assert "criteria_matches" in data
+    assert len(data["criteria_matches"]) >= 3
+    assert "role_fit" in data
+    assert 0 <= data["role_fit"]["fit_score"] <= 100
+
+
+def test_career_delta_intelligence(client):
+    """Asserts that GET /api/career/delta produces genuine mathematical trajectory diffs."""
+    res = client.get("/api/career/delta")
+    assert res.status_code == 200
+    data = res.json()
+    assert "new_projects" in data
+    assert "strengthened_domains" in data
+    assert "current_trajectory" in data
+    assert "recommended_representation_updates" in data
+    assert len(data["recommended_representation_updates"]) > 0
+
+
+def test_event_significance_classification(client):
+    """Asserts that the Event Significance Engine properly classifies event tiers."""
+    # 1. Low tier (docs / typos)
+    res_low = client.post(
+        "/api/events/classify",
+        params={"commit_message": "docs: fix readme typo"}
+    )
+    assert res_low.status_code == 200
+    assert res_low.json()["level"] == "LOW"
+    assert res_low.json()["action_policy"] == "RECORD_ONLY"
+
+    # 2. Career significant tier (release with benchmarks)
+    res_release = client.post(
+        "/api/events/classify",
+        params={
+            "commit_message": "release: v2.0 production deploy with 99.9% verified accuracy",
+            "files_changed": "backend/app/engine.py,models/train.py"
+        }
+    )
+    assert res_release.status_code == 200
+    assert res_release.json()["level"] == "CAREER_SIGNIFICANT"
+    assert res_release.json()["action_policy"] == "FULL_SNAPSHOT_AND_PORTFOLIO"
+
+
+def test_alembic_migrations_clean_upgrade_and_downgrade():
+    """Asserts that Alembic migrations can execute upgrade head and downgrade base cleanly from scratch."""
+    import subprocess
+    import tempfile
+    import os
+    
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_db:
+        tmp_db_path = tmp_db.name
+
+    try:
+        db_url = f"sqlite:///{tmp_db_path}"
+        env = os.environ.copy()
+        env["DATABASE_URL"] = db_url
+        env["PYTHONPATH"] = "."
+        
+        # Test upgrade head
+        up_res = subprocess.run(
+            [sys.executable, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"],
+            cwd=str(Path(__file__).resolve().parent.parent.parent),
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        assert up_res.returncode == 0, f"Alembic upgrade failed: {up_res.stderr}"
+        
+        # Test downgrade base
+        down_res = subprocess.run(
+            [sys.executable, "-m", "alembic", "-c", "alembic.ini", "downgrade", "base"],
+            cwd=str(Path(__file__).resolve().parent.parent.parent),
+            env=env,
+            capture_output=True,
+            text=True
+        )
+        assert down_res.returncode == 0, f"Alembic downgrade failed: {down_res.stderr}"
+    finally:
+        if os.path.exists(tmp_db_path):
+            try:
+                os.remove(tmp_db_path)
+            except Exception:
+                pass
+
+
+def test_claim_validator_zero_metric_injection_and_provenance(db):
+    """Asserts that claim validation strips unverified metrics without injecting fake words, and correctly tracks provenance."""
+    from backend.app.intelligence.claim_validator import validate_and_sanitize_resume_blocks
+    from backend.app.schemas import ResumeBlockItem
+    
+    user = db.query(User).first()
+    assert user is not None
+    
+    # Test block with suspicious percentage metric
+    test_block = ResumeBlockItem(
+        block_type="selected_work",
+        title="Work",
+        order=1,
+        content_payload={
+            "projects": [
+                {
+                    "title": "Data Pipeline",
+                    "evidence_claims": [
+                        {"claim": "Improved query latency by 45%", "confidence": 0.9}
+                    ]
+                }
+            ]
+        }
+    )
+    
+    result = validate_and_sanitize_resume_blocks([test_block], user, db)
+    assert len(result.fabricated_metrics_detected) == 1
+    sanitized_proj = result.sanitized_blocks[0].content_payload["projects"][0]
+    sanitized_claim = sanitized_proj["evidence_claims"][0]["claim"]
+    
+    # Must remove percentage metric and NOT inject fake proof phrases
+    assert "by 45%" not in sanitized_claim
+    assert "verified benchmarking" not in sanitized_claim
+    assert sanitized_claim == "Improved query latency"
+
+
+def test_github_webhook_secure_processing(client, db):
+    """Asserts that POST /api/webhooks/github resolves connected users and captures commits as evidence."""
+    user = db.query(User).first()
+    assert user is not None
+    
+    payload = {
+        "repository": {
+            "name": "microservices-platform",
+            "full_name": f"{user.github_username}/microservices-platform",
+            "owner": {"login": user.github_username},
+            "description": "High-throughput microservices architecture"
+        },
+        "sender": {"login": user.github_username},
+        "commits": [
+            {
+                "id": "abc1234567890",
+                "message": "feat: release v2.0 with benchmarked throughput optimization",
+                "modified": ["backend/api.py", "backend/engine.py"],
+                "added": ["benchmarks/report.json"],
+                "url": "https://github.com/example/commit/abc1234"
+            }
+        ]
+    }
+    
+    res = client.post("/api/webhooks/github", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "processed"
+    assert data["user_associated"] is True
+    assert data["significance"] == "CAREER_SIGNIFICANT"
+    assert data["snapshot_created"] is True
+    
+    # Verify Evidence was saved in DB
+    ev = db.query(Evidence).filter(Evidence.user_id == user.id, Evidence.hash == "abc1234567890").first()
+    assert ev is not None
+    assert ev.type in ("COMMIT", "RELEASE")
+
+
+def test_ai_polish_anti_hallucination_guardrails(client):
+    """Asserts that AI polish does not hallucinate unevidenced sub-millisecond, zero-downtime, or test coverage guarantees."""
+    res = client.post(
+        "/api/resumes/ai-improve",
+        json={"text": "wrote api endpoints for customer data", "field_type": "bullet", "target_role": "Backend Engineer"}
+    )
+    assert res.status_code == 200
+    improved = res.json()["improved_text"]
+    
+    # Verify no unevidenced fabricated metrics
+    assert "sub-millisecond" not in improved
+    assert "zero-downtime" not in improved
+    assert "sub-100ms" not in improved
+    assert "comprehensive test coverage and production observability" not in improved
+    assert "Architected" in improved or "Engineered" in improved
 
 
 

@@ -13,8 +13,10 @@ if _backend_dir not in sys.path:
 import math
 import json
 import re
+import hmac
+import hashlib
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Query, status
+from fastapi import FastAPI, Depends, HTTPException, Query, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
@@ -47,13 +49,28 @@ from backend.app.schemas import (
     ImproveRepresentationRequest, AchievementItem, AchievementsBlockPayload
 )
 from backend.app.auth import get_current_user, create_access_token, exchange_github_code, encrypt_token, decrypt_token
-from backend.app.config import APP_ENV, OPENAI_API_KEY, ANTHROPIC_API_KEY, DEMO_MODE
+from backend.app.config import APP_ENV, OPENAI_API_KEY, ANTHROPIC_API_KEY, DEMO_MODE, GITHUB_WEBHOOK_SECRET
+from backend.app.intelligence.delta_engine import compute_career_delta, CareerDeltaReport
+from backend.app.intelligence.significance_engine import classify_event_significance, EventSignificanceResult
 from backend.app.ingestion_schemas import ProfileIngestRequest, ExtractedProfile
 from backend.app.ingestion import (
     resolve_source_text,
     extract_profile_from_text,
     stage_extracted_profile
 )
+from backend.app.intelligence.identity_engine import compute_candidate_professional_identity
+from backend.app.intelligence.recruiter_engine import (
+    evaluate_recruiter_role_match,
+    match_custom_job_description,
+)
+from backend.app.intelligence.claim_validator import validate_and_sanitize_resume_blocks
+from backend.app.services.resume_intelligence import (
+    generate_resume_strategy_for_role,
+    generate_blocks_representation_from_strategy,
+    generate_recruiter_critique_for_role,
+    build_featured_resume,
+)
+from backend.app.schemas import CustomJobDescriptionMatchRequest
 
 from backend.app.analyzer import (
     fetch_github_repos,
@@ -584,29 +601,14 @@ def delete_social_link(id: uuid.UUID, current_user: User = Depends(get_current_u
 
 
 def build_dynamic_resume_payload(current_user: User, role: str, db: Session, variant: str = "visual") -> Dict[str, Any]:
+    strategy = generate_resume_strategy_for_role(current_user, role, db, "ats_clean" if variant == "ats" else "visual")
+    summary = strategy.candidate_positioning
     projects = db.query(Project).filter(Project.user_id == current_user.id).all()
     role_l = role.lower()
-    
-    if variant == "ats":
-        # ATS-optimized dense summary tailored for recruiter search algorithms
-        if "machine learning" in role_l or "data" in role_l:
-            summary = f"Technical Machine Learning Engineer with verified expertise in predictive modeling, NLP pipelines, data architectures, and algorithm optimization. Proficient in Python, high-throughput model execution, and production deployment."
-        elif "backend" in role_l or "systems" in role_l:
-            summary = f"Systems and Backend Software Engineer experienced in architecting scalable REST/gRPC APIs, microservices, database caching, and high-concurrency pipelines. Skilled in Go, Python, TypeScript, and distributed systems design."
-        else:
-            summary = f"Software Engineer with demonstrated competency in full-lifecycle software development, algorithm design, and maintainable systems architecture. Proven track record of shipping production-grade applications."
-    else:
-        # Visual narrative-focused summary emphasizing evidence-backed achievements
-        if "machine learning" in role_l or "data" in role_l:
-            summary = f"Machine Learning specialist focused on predictive modeling, NLP pipelines, and data architectures. Backed by verified repository evidence showing execution depth in Python and algorithm design."
-        elif "backend" in role_l or "systems" in role_l:
-            summary = f"Backend systems engineer specialized in constructing robust REST APIs, network logic, and data engines. Experienced with high-performance routing and algorithmic optimizations."
-        else:
-            summary = f"Results-driven technical specialist with expertise in {role}. Demonstrated track record of developing sophisticated code solutions backed by git credentials."
 
     scored_projects = []
     for p in projects:
-        score = p.complexity_score
+        score = p.complexity_score or 0.5
         confirmed_domains = db.query(Domain).join(project_domains).filter(
             project_domains.c.project_id == p.id,
             project_domains.c.status == "user_confirmed"
@@ -658,7 +660,6 @@ def build_dynamic_resume_payload(current_user: User, role: str, db: Session, var
             project_skills.c.project_id == p.id,
             project_skills.c.status == "user_confirmed"
         ).all()
-        skills_str = ", ".join([s.name for s in confirmed_skills[:3]])
         
         raw_bullets = [c.claim for c in claims_list]
         bullet_points: List[str] = []
@@ -667,17 +668,9 @@ def build_dynamic_resume_payload(current_user: User, role: str, db: Session, var
             if not any(_is_similar_claim_text(b, prev) for prev in seen_bullet_texts):
                 bullet_points.append(b)
                 seen_bullet_texts.append(b)
-            else:
-                # Diversify duplicate text with project-specific language
-                alt_bullet = f"Engineered domain-specific solutions in {p.title} utilizing {skills_str or 'robust software patterns'}."
-                if not any(_is_similar_claim_text(alt_bullet, prev) for prev in seen_bullet_texts):
-                    bullet_points.append(alt_bullet)
-                    seen_bullet_texts.append(alt_bullet)
 
-        if not bullet_points:
-            fallback_b = f"Designed and deployed {p.title} to resolve technical complexities, utilizing {skills_str or 'advanced software systems'}."
-            bullet_points.append(fallback_b)
-            seen_bullet_texts.append(fallback_b)
+        if not bullet_points and p.description:
+            bullet_points.append(p.description)
 
         evidence_links = []
         for claim in claims_list:
@@ -693,8 +686,11 @@ def build_dynamic_resume_payload(current_user: User, role: str, db: Session, var
             "title": p.title,
             "description": p.description or "",
             "skills": [s.name for s in confirmed_skills[:5]],
+            "bullet_points": bullet_points,
+            "evidence": evidence_links,
             "evidence_links": evidence_links,
             "narrative": " • ".join(bullet_points),
+            "relevance_reasons": reasons,
             "selected_reasons": reasons,
             "included": True,
             "custom_bullets": bullet_points
@@ -1092,21 +1088,21 @@ def ai_improve_resume_content(req: AIImproveRequest, current_user: User = Depend
         if not stripped:
             stripped = clean_text
             
-        # Domain context-aware verbs and clauses
+        # Domain context-aware active engineering verbs strictly rewriting candidate's text
         if any(k in lower_t for k in ("api", "endpoint", "rest", "graphql", "grpc", "service", "backend")):
-            improved = f"Architected high-throughput services for {stripped}, establishing strict error-handling contracts and sub-millisecond response guarantees."
+            improved = f"Architected service interfaces for {stripped}, establishing structured API error-handling contracts and maintainable routing patterns."
         elif any(k in lower_t for k in ("db", "database", "sql", "postgres", "redis", "cache", "query", "orm")):
-            improved = f"Engineered resilient data access layers for {stripped}, optimizing indexing strategies and mitigating concurrent read bottlenecks."
+            improved = f"Engineered persistent data access logic for {stripped}, optimizing indexing structure and query execution paths."
         elif any(k in lower_t for k in ("model", "ml", "ai", "transformer", "train", "inference", "dataset", "neural")):
-            improved = f"Developed calibrated machine learning workflows for {stripped}, ensuring reproducible training evaluation and low-latency inference."
+            improved = f"Developed machine learning pipelines for {stripped}, structuring repeatable evaluation workflows and model execution."
         elif any(k in lower_t for k in ("docker", "k8s", "kubernetes", "ci", "cd", "pipeline", "deploy", "infra", "cloud")):
-            improved = f"Containerized and deployed infrastructure for {stripped}, automating zero-downtime rollouts and infrastructure-as-code configurations."
+            improved = f"Containerized and configured deployment pipelines for {stripped}, establishing declarative infrastructure workflows."
         elif any(k in lower_t for k in ("ui", "react", "next", "frontend", "css", "component", "state")):
-            improved = f"Designed responsive, accessible user interfaces for {stripped}, implementing reactive state management and sub-100ms render lifecycles."
+            improved = f"Designed responsive user interfaces for {stripped}, structuring modular component state and clean view logic."
         elif any(lower_t.startswith(p) for p in ("architected", "developed", "engineered", "implemented", "optimized", "spearheaded", "designed", "deployed", "streamlined")):
-            improved = f"{clean_text[0].upper() + clean_text[1:]} to ensure enterprise system reliability and maintainable software standards."
+            improved = f"{clean_text[0].upper() + clean_text[1:]} to maintain reliable system modularity and software craftsmanship standards."
         else:
-            improved = f"Engineered and deployed {stripped[0].lower() + stripped[1:] if len(stripped) > 1 else stripped} with comprehensive test coverage and production observability."
+            improved = f"Engineered and implemented {stripped[0].lower() + stripped[1:] if len(stripped) > 1 else stripped} with clear modular boundaries."
 
         suggestions = [
             "Add verified project metrics if backed by your evidence (e.g., requests/sec, latency, throughput, concurrency)",
@@ -1119,382 +1115,36 @@ def ai_improve_resume_content(req: AIImproveRequest, current_user: User = Depend
     )
 
 
+# ─── Resume Intelligence Engine Subsystem Endpoints ─────────────────────────
 
-# ─── Resume Intelligence Engine Subsystem ──────────────────────────────────────
-
-def compute_candidate_professional_identity(user: User, db: Session) -> ProfessionalIdentityResponse:
-    domain_progress = db.query(DomainProgress).filter(DomainProgress.user_id == user.id).all()
-    skill_progress = db.query(SkillProgress).filter(SkillProgress.user_id == user.id).all()
-    projects = db.query(Project).filter(Project.user_id == user.id).all()
-    claims = db.query(Claim).filter(Claim.user_id == user.id, Claim.status == "user_confirmed").all()
-    
-    # Primary domains: sorted by depth and exposure
-    sorted_domains = sorted(domain_progress, key=lambda dp: (dp.depth_score, dp.exposure_score), reverse=True)
-    primary = [dp.domain.name for dp in sorted_domains[:3]] or ["Software Engineering", "Algorithms", "Backend Development"]
-    
-    # Emerging domains: trajectory increasing or last active recently
-    emerging = [dp.domain.name for dp in domain_progress if dp.trajectory == "INCREASING" and dp.domain.name not in primary][:3]
-    if not emerging and len(sorted_domains) > 3:
-        emerging = [dp.domain.name for dp in sorted_domains[3:6]]
-    if not emerging:
-        emerging = ["Developer Tooling", "Research Engineering"]
-        
-    # Strong capabilities: skills with high evidence count & depth
-    sorted_skills = sorted(skill_progress, key=lambda sp: (sp.evidence_count, sp.depth_score), reverse=True)
-    capabilities = [sp.skill.name for sp in sorted_skills[:6]] or ["Python", "Algorithms", "Backend Architecture", "FastAPI", "PostgreSQL", "System Design"]
-    
-    # Quantitative trajectory & orientation
-    claim_count = len(claims)
-    evidence_strength = "High" if claim_count >= 5 else ("Moderate" if claim_count >= 2 else "Developing")
-    
-    avg_complexity = sum(p.complexity_score or 0.6 for p in projects) / max(len(projects), 1)
-    research_orientation = "Increasing" if avg_complexity >= 0.75 or any("AI" in d or "ML" in d or "Algorithm" in d for d in primary) else ("Stable" if avg_complexity >= 0.5 else "Experimental")
-    
-    # Project style
-    if any("AI" in d or "ML" in d for d in primary):
-        project_style = "Technical / Intelligent Systems & Algorithms"
-    elif any("Distributed" in d or "Backend" in d for d in primary):
-        project_style = "High-Reliability Distributed Systems"
-    else:
-        project_style = "Full-Stack Production Engineering"
-        
-    # Trajectory narrative
-    trajectory_str = f"Specializing in {', '.join(primary[:2])} with growing velocity in {emerging[0] if emerging else 'scalable systems'}."
-    
-    # Domain signature graph nodes & edges
-    sig_nodes = []
-    top_sig_domains = sorted_domains[:4] if sorted_domains else []
-    for dp in top_sig_domains:
-        sig_nodes.append(DomainSignatureNode(
-            id=str(dp.domain.id),
-            name=dp.domain.name,
-            category=getattr(dp.domain, "category", None) or "Engineering",
-            level=dp.current_level,
-            evidence_count=int(dp.evidence_score * 10)
-        ))
-    if not sig_nodes:
-        sig_nodes = [
-            DomainSignatureNode(id="sig-1", name="AI / ML", category="Intelligence", level="PROFICIENT", evidence_count=8),
-            DomainSignatureNode(id="sig-2", name="Algorithms", category="Core", level="ADVANCED", evidence_count=10),
-            DomainSignatureNode(id="sig-3", name="Software Engineering", category="Architecture", level="PROFICIENT", evidence_count=6)
-        ]
-        
-    sig_edges = []
-    for i in range(len(sig_nodes) - 1):
-        sig_edges.append(DomainSignatureEdge(
-            source=sig_nodes[i].name,
-            target=sig_nodes[i+1].name,
-            relationship="REINFORCES"
-        ))
-    if len(sig_nodes) >= 3:
-        sig_edges.append(DomainSignatureEdge(
-            source=sig_nodes[0].name,
-            target=sig_nodes[-1].name,
-            relationship="INTEGRATES"
-        ))
-
-    return ProfessionalIdentityResponse(
-        user_id=user.id,
-        candidate_name=user.name,
-        headline=user.headline or f"{primary[0]} Specialist",
-        primary_domains=primary,
-        emerging_domains=emerging,
-        strong_capabilities=capabilities,
-        current_trajectory=trajectory_str,
-        evidence_strength=evidence_strength,
-        research_orientation=research_orientation,
-        project_style=project_style,
-        signature_nodes=sig_nodes,
-        signature_edges=sig_edges,
-        total_verified_claims=claim_count,
-        total_repositories=len(projects)
-    )
+@app.get("/api/resume/identity", response_model=ProfessionalIdentityResponse)
+def get_professional_identity(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Discovers professional identity model from ground-truth Career Graph evidence."""
+    return compute_candidate_professional_identity(current_user, db)
 
 
-def generate_resume_strategy_for_role(user: User, role: str, db: Session, layout_pref: Optional[str] = None) -> ResumeStrategyResponse:
-    identity = compute_candidate_professional_identity(user, db)
-    projects = db.query(Project).filter(Project.user_id == user.id).all()
-    skills = db.query(SkillProgress).filter(SkillProgress.user_id == user.id).all()
-    claims = db.query(Claim).filter(Claim.user_id == user.id, Claim.status == "user_confirmed").all()
-    
-    role_lower = role.lower()
-    
-    # Filter and rank projects by target role
-    scored_projects = []
-    for p in projects:
-        score = p.complexity_score or 0.5
-        p_title = (p.title or "").lower()
-        p_desc = (p.description or "").lower()
-        
-        if "ml" in role_lower or "machine learning" in role_lower or "ai" in role_lower:
-            if any(k in p_title or k in p_desc for k in ["ml", "ai", "news", "model", "nlp", "classification", "learn"]):
-                score += 0.5
-        elif "backend" in role_lower or "system" in role_lower or "distributed" in role_lower:
-            if any(k in p_title or k in p_desc for k in ["backend", "api", "server", "repo", "analyzer", "database", "graph"]):
-                score += 0.5
-        elif "research" in role_lower:
-            if any(k in p_title or k in p_desc for k in ["algorithm", "detector", "analyzer", "nlp", "graph", "paper"]):
-                score += 0.5
-        else:
-            score += 0.3
-            
-        scored_projects.append((p.title, score))
-        
-    scored_projects.sort(key=lambda x: x[1], reverse=True)
-    highlight_projects = [sp[0] for sp in scored_projects[:3]] or [p.title for p in projects[:3]]
-    
-    # Filter skills and positioning
-    if "ml" in role_lower or "ai" in role_lower:
-        role_skills = ["Python", "Machine Learning", "NLP", "Algorithms", "Model Evaluation", "PyTorch"]
-        positioning = f"AI/ML engineer with strong algorithmic foundations and verified implementation in intelligent systems and data modeling."
-        weak_areas = ["MLOps at Scale", "Distributed GPU Cluster Orchestration"]
-        suggested_layout = "research" if "research" in role_lower else "technical"
-    elif "backend" in role_lower or "system" in role_lower:
-        role_skills = ["Python", "FastAPI", "PostgreSQL", "System Design", "Distributed Systems", "Docker", "REST APIs"]
-        positioning = f"Backend & Systems engineer focused on high-concurrency architectures, verifiable data pipelines, and robust API design."
-        weak_areas = ["Kubernetes Cluster Administration", "Multi-region Failover"]
-        suggested_layout = "technical"
-    elif "research" in role_lower:
-        role_skills = ["Algorithm Design", "Computational Complexity", "Graph Theory", "Python", "Empirical Evaluation"]
-        positioning = f"Research engineer specializing in algorithmic optimization, graph structures, and empirical model verification."
-        weak_areas = ["Commercial Cloud Deployments"]
-        suggested_layout = "editorial"
-    elif "executive" in role_lower or "lead" in role_lower:
-        role_skills = ["System Architecture", "Technical Leadership", "Python", "API Strategy", "Code Review"]
-        positioning = f"Engineering architect delivering end-to-end technical standards, verified codebase health, and high-velocity systems."
-        weak_areas = ["Frontend UI Styling"]
-        suggested_layout = "executive"
-    else:
-        role_skills = [sp.skill.name for sp in sorted(skills, key=lambda s: s.evidence_count, reverse=True)[:6]] or ["Python", "FastAPI", "Algorithms", "PostgreSQL", "System Architecture"]
-        positioning = f"Full-stack software engineer delivering verified, production-grade applications with strong foundational problem solving."
-        weak_areas = ["Legacy Monolith Migration"]
-        suggested_layout = layout_pref or "modern_professional"
-        
-    evidence_priorities = [c.claim for c in claims[:3]] or ["100% verified GitHub repository commit history", "Empirical test suite coverage and API contracts"]
-    
-    return ResumeStrategyResponse(
-        target_role=role,
-        candidate_positioning=positioning,
-        primary_domains=identity.primary_domains,
-        supporting_domains=identity.emerging_domains,
-        projects_to_highlight=highlight_projects,
-        skills_to_emphasize=role_skills,
-        evidence_priorities=evidence_priorities,
-        weak_areas=weak_areas,
-        suggested_layout=suggested_layout,
-        role_alignment_score=0.92
-    )
+@app.post("/api/resume/strategy", response_model=ResumeStrategyResponse)
+def get_resume_strategy(
+    req: ResumeStrategyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Curates role-specific representation strategy with mathematical role fit breakdown."""
+    return generate_resume_strategy_for_role(current_user, req.target_role, db, req.layout_preference)
 
 
-def generate_blocks_representation_from_strategy(user: User, strategy: ResumeStrategyResponse, db: Session, layout_override: Optional[str] = None) -> ResumeBlockRepresentation:
-    identity = compute_candidate_professional_identity(user, db)
-    projects = db.query(Project).filter(Project.user_id == user.id).all()
-    claims = db.query(Claim).filter(Claim.user_id == user.id, Claim.status == "user_confirmed").all()
-    work_exps = db.query(WorkExperience).filter(WorkExperience.user_id == user.id).order_by(WorkExperience.created_at.desc()).all()
-    edus = db.query(Education).filter(Education.user_id == user.id).order_by(Education.created_at.desc()).all()
-    certs = db.query(Certification).filter(Certification.user_id == user.id).all()
-    links = db.query(SocialLink).filter(SocialLink.user_id == user.id).all()
-    
-    layout = layout_override or strategy.suggested_layout or "modern_professional"
-    
-    pos_statement = strategy.candidate_positioning
-    summary_bullets = [s.strip() for s in re.split(r'(?<=[.!?])\s+', pos_statement) if s.strip()][:3]
-
-    # 1. Identity block
-    blocks: List[ResumeBlockItem] = [
-        ResumeBlockItem(
-            block_type="identity",
-            title="Professional Identity",
-            order=1,
-            content_payload={
-                "name": user.name,
-                "headline": f"{strategy.target_role.upper()} · {identity.primary_domains[0]}" if identity.primary_domains else strategy.target_role.upper(),
-                "email": user.email,
-                "location": user.location or "",
-                "github": user.github_username or "",
-                "tagline": strategy.candidate_positioning
-            }
-        ),
-        # 2. Professional Signature Block
-        ResumeBlockItem(
-            block_type="signature",
-            title="Professional Signature",
-            subtitle="Interconnected Core Competencies from Career Graph",
-            order=2,
-            content_payload={
-                "nodes": [n.model_dump() for n in identity.signature_nodes],
-                "edges": [e.model_dump() for e in identity.signature_edges],
-                "primary_domains": identity.primary_domains,
-                "project_style": identity.project_style
-            }
-        ),
-        # 3. Positioning Block
-        ResumeBlockItem(
-            block_type="positioning",
-            title="Core Profile & Positioning",
-            order=3,
-            content_payload={
-                "statement": pos_statement,
-                "summary_bullets": summary_bullets,
-                "research_orientation": identity.research_orientation,
-                "evidence_strength": identity.evidence_strength
-            }
-        )
-    ]
-    
-    # 4. Selected Work Block
-    highlighted = [p for p in projects if p.title in strategy.projects_to_highlight]
-    if not highlighted:
-        highlighted = projects[:3]
-        
-    project_payloads = []
-    for p in highlighted:
-        p_claims = [c for c in claims if c.project_id == p.id]
-        p_skills = [s.name for s in p.skills] if p.skills else []
-        project_payloads.append({
-            "id": str(p.id),
-            "title": p.title,
-            "description": p.description or f"Engineered verified technical implementation for {p.title}.",
-            "technologies": p_skills[:4] or ["Python", "FastAPI"],
-            "repository_url": p.repository_url or "",
-            "evidence_count": len(p_claims),
-            "evidence_claims": [
-                {
-                    "id": str(c.id),
-                    "claim": c.claim,
-                    "confidence": c.confidence,
-                    "type": c.claim_type or "CLAIM"
-                } for c in p_claims[:2]
-            ]
-        })
-        
-    blocks.append(ResumeBlockItem(
-        block_type="selected_work",
-        title="Selected Work & Systems",
-        subtitle="Verifiable Engineering Artifacts",
-        order=4,
-        content_payload={"projects": project_payloads}
-    ))
-    
-    # 5. Technical Depth Block (Evidence-backed clusters, NO cheesy % bars)
-    clusters = []
-    for d in identity.primary_domains[:3]:
-        related_skills = [s for s in strategy.skills_to_emphasize[:3]]
-        clusters.append({
-            "domain": d,
-            "capabilities": " · ".join(related_skills),
-            "evidence_note": f"{len(highlighted)} projects · verified GitHub commit history"
-        })
-    blocks.append(ResumeBlockItem(
-        block_type="technical_depth",
-        title="Technical Depth & Capabilities",
-        subtitle="Evidence-Backed Capability Clusters",
-        order=5,
-        content_payload={"clusters": clusters, "skills": strategy.skills_to_emphasize}
-    ))
-    
-    # 6. Current Trajectory Block
-    blocks.append(ResumeBlockItem(
-        block_type="trajectory",
-        title="Current Trajectory & Horizons",
-        order=6,
-        content_payload={
-            "trajectory_text": identity.current_trajectory,
-            "emerging_domains": identity.emerging_domains,
-            "next_horizons": ["Distributed AI Systems", "Compiler & Optimization Tooling", "Verified Graph Architectures"]
-        }
-    ))
-    
-    # 7. Experience Block
-    if work_exps:
-        blocks.append(ResumeBlockItem(
-            block_type="experience",
-            title="Professional Experience",
-            order=7,
-            content_payload={"experiences": [WorkExperienceResponse.model_validate(w).model_dump() for w in work_exps]}
-        ))
-        
-    # 8. Education Block
-    if edus:
-        blocks.append(ResumeBlockItem(
-            block_type="education",
-            title="Education",
-            order=8,
-            content_payload={"educations": [EducationResponse.model_validate(e).model_dump() for e in edus]}
-        ))
-        
-    # 9. Certifications & Links Block
-    blocks.append(ResumeBlockItem(
-        block_type="certifications",
-        title="Credentials & Links",
-        order=9,
-        content_payload={
-            "certifications": [CertificationResponse.model_validate(c).model_dump() for c in certs],
-            "links": [SocialLinkResponse.model_validate(l).model_dump() for l in links]
-        }
-    ))
-
-    # 10. Achievements Block (Available for Featured & ATS-Clean layouts)
-    top_claims = (
-        db.query(Claim)
-        .filter(Claim.user_id == user.id, Claim.status == "user_confirmed")
-        .order_by(Claim.confidence.desc())
-        .limit(4)
-        .all()
-    )
-    if top_claims:
-        achievements = [
-            AchievementItem(
-                icon=_icon_for_domain(getattr(c, "related_domain", None)),
-                title=c.claim[:48] + ("…" if len(c.claim) > 48 else ""),
-                description=c.claim,
-                claim_id=str(c.id),
-            )
-            for c in top_claims
-        ]
-        blocks.append(ResumeBlockItem(
-            block_type="achievements",
-            title="Key Achievements & Verified Proofs",
-            order=len(blocks) + 1,
-            content_payload=AchievementsBlockPayload(achievements=achievements).model_dump(),
-        ))
-
-    # Calculate real empirical verification & coverage rates from confirmed graph evidence
-    total_user_claims = claims
-    confirmed_claims_count = sum(1 for c in total_user_claims if c.status == "user_confirmed")
-    verif_rate = round(confirmed_claims_count / max(len(total_user_claims), 1), 2) if total_user_claims else (0.85 if highlighted else 0.0)
-    
-    covered_projects = sum(1 for p in highlighted if any(c.project_id == p.id for c in total_user_claims))
-    coverage_rate = round(covered_projects / max(len(highlighted), 1), 2) if highlighted else (0.75 if highlighted else 0.0)
-
-    return ResumeBlockRepresentation(
-        target_role=strategy.target_role,
-        layout_personality=layout,
-        resume_format="ats_clean" if layout in ("featured", "ats_clean") else "visual",
-        positioning_statement=strategy.candidate_positioning,
-        blocks=blocks,
-        evidence_coverage_rate=coverage_rate,
-        verification_rate=verif_rate,
-        generated_at=datetime.now(timezone.utc)
-    )
-
-
-def build_featured_resume(user: User, db: Session, resume_format: str = "ats_clean") -> ResumeBlockRepresentation:
-    """Evaluates candidate competencies against available roles and returns the optimal Featured Resume."""
-    candidate_roles = [
-        "AI / ML Engineer",
-        "Backend Systems Engineer",
-        "Research Engineer",
-        "Full Stack Engineer"
-    ]
-    scored = [
-        (role, generate_resume_strategy_for_role(user, role, db, "featured"))
-        for role in candidate_roles
-    ]
-    _, best_strategy = max(scored, key=lambda pair: pair[1].role_alignment_score)
-    rep = generate_blocks_representation_from_strategy(user, best_strategy, db, "featured")
-    rep.resume_format = resume_format
-    return rep
+@app.post("/api/resume/representation", response_model=ResumeBlockRepresentation)
+def get_resume_representation(
+    req: ResumeStrategyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generates structured modular block representation for the resume."""
+    strategy = generate_resume_strategy_for_role(current_user, req.target_role, db, req.layout_preference)
+    return generate_blocks_representation_from_strategy(current_user, strategy, db, req.layout_preference)
 
 
 @app.post("/api/resume/featured/auto-generate", response_model=ResumeBlockRepresentation)
@@ -1506,86 +1156,14 @@ def auto_generate_featured_resume(
     return build_featured_resume(current_user, db)
 
 
-@app.get("/api/resume/identity", response_model=ProfessionalIdentityResponse)
-def get_resume_identity(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Computes the candidate's Professional Identity Model from the Career Graph."""
-    return compute_candidate_professional_identity(current_user, db)
-
-
-@app.post("/api/resume/strategy", response_model=ResumeStrategyResponse)
-def get_resume_strategy(
-    req: ResumeStrategyRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Curates context for a target role and generates a tailored Resume Strategy."""
-    return generate_resume_strategy_for_role(current_user, req.target_role, db, req.layout_preference)
-
-
-@app.post("/api/resume/representation", response_model=ResumeBlockRepresentation)
-def get_resume_representation(
-    req: ResumeStrategyRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Generates modular structured resume blocks from the Career Graph & Strategy."""
-    strategy = generate_resume_strategy_for_role(current_user, req.target_role, db, req.layout_preference)
-    return generate_blocks_representation_from_strategy(current_user, strategy, db, req.layout_preference)
-
-
 @app.post("/api/resume/validate", response_model=ResumeValidationResponse)
-def validate_resume_blocks(
+def validate_resume_representation(
     req: ResumeValidationRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Checks every single claim and text block against database ground truth. Flags/sanitizes any fabricated metrics."""
-    confirmed_claims = {c.claim.lower().strip() for c in db.query(Claim).filter(
-        Claim.user_id == current_user.id,
-        Claim.status == "user_confirmed"
-    ).all()}
-    
-    fabricated_metrics = []
-    unverified = []
-    sanitized = []
-    
-    import re
-    metric_pattern = re.compile(r'\b(increased|improved|reduced|boosted|accelerated|optimized)\s+by\s+\d+%', re.IGNORECASE)
-    
-    for block in req.blocks:
-        b_dict = block.model_dump()
-        payload = b_dict.get("content_payload", {})
-        
-        # Check text in positioning or statements
-        if "statement" in payload and isinstance(payload["statement"], str):
-            text = payload["statement"]
-            matches = metric_pattern.findall(text)
-            if matches:
-                fabricated_metrics.extend(matches)
-                payload["statement"] = metric_pattern.sub("significantly enhanced", text)
-                
-        # Check claims in selected_work
-        if "projects" in payload and isinstance(payload["projects"], list):
-            for p in payload["projects"]:
-                if "evidence_claims" in p and isinstance(p["evidence_claims"], list):
-                    for c in p["evidence_claims"]:
-                        c_text = c.get("claim", "").lower().strip()
-                        if c_text and not any(c_text in conf or conf in c_text for conf in confirmed_claims):
-                            unverified.append(c.get("claim", ""))
-                            
-        sanitized.append(ResumeBlockItem(**b_dict))
-        
-    return ResumeValidationResponse(
-        is_valid=len(fabricated_metrics) == 0 and len(unverified) == 0,
-        unverified_claims=unverified,
-        fabricated_metrics_detected=fabricated_metrics,
-        sanitized_blocks=sanitized,
-        verified_claim_count=len(confirmed_claims),
-        total_claims_checked=len(confirmed_claims) + len(unverified)
-    )
+    """Cross-validates all claims against database ground truth and flags/sanitizes fabricated metrics."""
+    return validate_and_sanitize_resume_blocks(req.blocks, current_user, db)
 
 
 @app.post("/api/resume/critique", response_model=ResumeCritiqueResponse)
@@ -1595,146 +1173,7 @@ def critique_resume_representation(
     db: Session = Depends(get_db)
 ):
     """Evaluates representation against the 10-second recruiter attention model and discovers communication gaps."""
-    identity = compute_candidate_professional_identity(current_user, db)
-    projects = db.query(Project).filter(Project.user_id == current_user.id).all()
-    domain_progress = db.query(DomainProgress).filter(DomainProgress.user_id == current_user.id).all()
-    skill_progress = db.query(SkillProgress).filter(SkillProgress.user_id == current_user.id).all()
-    total_claims = db.query(Claim).filter(Claim.user_id == current_user.id).all()
-    confirmed_claims = [c for c in total_claims if c.status == "user_confirmed"]
-
-    def get_rating(score: int) -> str:
-        if score >= 80:
-            return "Strong"
-        elif score >= 50:
-            return "Moderate"
-        else:
-            return "Needs Work"
-
-    # 1. Role Relevance
-    role_words = set(req.target_role.lower().replace("/", " ").replace("-", " ").split())
-    matching_domains = [dp for dp in domain_progress if any(w in dp.domain.name.lower() for w in role_words)]
-    matching_skills = [sp for sp in skill_progress if any(w in sp.skill.name.lower() for w in role_words)]
-    rel_match_count = len(matching_domains) + len(matching_skills)
-    relevance_score = min(100, max(20, rel_match_count * 25 + (35 if len(projects) > 0 else 10)))
-    relevance_rating = get_rating(relevance_score)
-
-    # 2. Evidence Coverage
-    if total_claims:
-        evidence_score = int((len(confirmed_claims) / len(total_claims)) * 100)
-    else:
-        evidence_score = 40 if projects else 15
-    evidence_rating = get_rating(evidence_score)
-
-    # 3. Differentiation
-    diff_score = min(100, max(20, len(identity.primary_domains) * 20 + len(identity.emerging_domains) * 15 + len(projects) * 10))
-    diff_rating = get_rating(diff_score)
-
-    # 4. Technical Depth
-    sp_scores = [sp.depth_score for sp in skill_progress if sp.evidence_count > 0]
-    dp_scores = [dp.depth_score for dp in domain_progress if dp.exposure_score > 0]
-    all_depths = sp_scores + dp_scores
-    avg_depth = (sum(all_depths) / len(all_depths)) if all_depths else (0.2 if projects else 0.05)
-    tech_depth_score = min(100, max(15, int(avg_depth * 100)))
-    tech_depth_rating = get_rating(tech_depth_score)
-
-    # 5. Clarity & Scannability
-    clarity_score = 20
-    if current_user.headline:
-        clarity_score += 20
-    if projects:
-        clarity_score += 30
-    if confirmed_claims:
-        clarity_score += 30
-    clarity_score = min(100, clarity_score)
-    clarity_rating = get_rating(clarity_score)
-
-    # 6. Claim Verification
-    if total_claims:
-        claim_verif_score = int((len(confirmed_claims) / len(total_claims)) * 100)
-    else:
-        claim_verif_score = 30 if projects else 10
-    claim_verif_rating = get_rating(claim_verif_score)
-
-    dimensions = [
-        ReadinessDimension(
-            dimension="Role Relevance",
-            rating=relevance_rating,
-            score=relevance_score,
-            insight=f"Positioning and highlighted work show {relevance_rating.lower()} alignment with {req.target_role} competencies."
-        ),
-        ReadinessDimension(
-            dimension="Evidence Coverage",
-            rating=evidence_rating,
-            score=evidence_score,
-            insight=f"{len(confirmed_claims)} of {len(total_claims)} core claims have verifiable GitHub proof chains." if total_claims else "Add projects to establish verifiable proof chains."
-        ),
-        ReadinessDimension(
-            dimension="Differentiation",
-            rating=diff_rating,
-            score=diff_score,
-            insight=f"Communicates {identity.project_style} with {len(identity.primary_domains)} primary domain specializations."
-        ),
-
-        ReadinessDimension(
-            dimension="Technical Depth",
-            rating=tech_depth_rating,
-            score=tech_depth_score,
-            insight=f"Presents capability clusters with an average computed depth of {tech_depth_score}%."
-        ),
-        ReadinessDimension(
-            dimension="Clarity & Scannability",
-            rating=clarity_rating,
-            score=clarity_score,
-            insight=f"Visual hierarchy scored {clarity_score}% for 10-second recruiter scanning."
-        ),
-        ReadinessDimension(
-            dimension="Claim Verification",
-            rating=claim_verif_rating,
-            score=claim_verif_score,
-            insight=f"{claim_verif_score}% empirical evidence backing across evaluated claims."
-        )
-    ]
-
-    avg_composite = (relevance_score + evidence_score + diff_score + tech_depth_score + clarity_score + claim_verif_score) // 6
-    if avg_composite >= 80:
-        overall_label = "Strong"
-    elif avg_composite >= 65:
-        overall_label = "Proficient"
-    elif avg_composite >= 45:
-        overall_label = "Developing"
-    else:
-        overall_label = "Needs Work"
-
-    primary_domain_name = identity.primary_domains[0] if identity.primary_domains else "Software Engineering"
-    attention = {
-        "0_to_3s": f"Who is this candidate? — {current_user.name}: {req.target_role.upper()} with primary depth in {primary_domain_name}.",
-        "3_to_8s": f"What are they good at? — Professional Signature: {', '.join(identity.primary_domains[:3]) or 'Core Systems'}.",
-        "8_to_18s": f"What have they actually built? — {len(projects)} repositories with verified commits and claims.",
-        "18_to_30s": f"Where are they going? — Current Trajectory: {identity.current_trajectory}"
-    }
-
-    gaps = []
-    if any("ML" in d.domain.name or "AI" in d.domain.name for d in domain_progress) and "ml" not in req.target_role.lower():
-        gaps.append(f"Your Career Graph shows substantial AI/ML depth ({identity.total_verified_claims} claims), which is currently downplayed for this role.")
-    if len(identity.emerging_domains) > 0:
-        gaps.append(f"Your emerging momentum in '{identity.emerging_domains[0]}' represents a high-growth horizon that could strengthen technical differentiation.")
-    if not gaps:
-        gaps.append("Your career graph reflects high alignment with zero critical evidence gaps.")
-
-    improvements = [
-        "Foreground verified proof links in Selected Work for fast recruiter verification",
-        f"Ensure current trajectory highlights near-term interest in {identity.emerging_domains[0] if identity.emerging_domains else 'scalable systems'}"
-    ]
-
-    return ResumeCritiqueResponse(
-        target_role=req.target_role,
-        readiness_dimensions=dimensions,
-        overall_readiness=overall_label,
-        recruiter_attention_hierarchy=attention,
-        fails_to_communicate_gaps=gaps,
-        recommended_improvements=improvements
-    )
-
+    return generate_recruiter_critique_for_role(current_user, req.target_role, db)
 
 
 @app.post("/api/resume/improve-representation", response_model=ResumeBlockRepresentation)
@@ -1758,57 +1197,22 @@ def get_recruiter_match(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Evaluates candidate match against a target role based on confirmed domains and skills."""
-    role = db.query(Role).filter(Role.name.ilike(role_name)).first()
-    if not role:
-        role = Role(
-            name=role_name,
-            description=f"Industry standard requirements and competency matrix for {role_name}."
-        )
-        db.add(role)
-        db.commit()
-        db.refresh(role)
-        
-    domain_progress = db.query(DomainProgress).filter(DomainProgress.user_id == current_user.id).all()
-    skill_progress = db.query(SkillProgress).filter(SkillProgress.user_id == current_user.id).all()
-    
-    criteria_matches = []
-    for dp in domain_progress:
-        score = dp.exposure_score
-        status_label = "strong" if score >= 0.7 else ("moderate" if score >= 0.4 else "weak")
-        criteria_matches.append(CriteriaMatch(
-            item_name=dp.domain.name,
-            type="domain",
-            status=status_label,
-            details=f"Calculated depth {int(dp.depth_score*100)}% with {dp.current_level} proficiency."
-        ))
-        
-    for sp in skill_progress:
-        status_label = "strong" if sp.evidence_count >= 3 else ("moderate" if sp.evidence_count >= 1 else "weak")
-        criteria_matches.append(CriteriaMatch(
-            item_name=sp.skill.name,
-            type="skill",
-            status=status_label,
-            details=f"Evidenced in {sp.evidence_count} project repositories with {sp.current_level} mastery."
-        ))
-        
-    strong_count = sum(1 for c in criteria_matches if c.status == "strong")
-    overall = "Strong Match" if strong_count >= 3 else ("Moderate Match" if strong_count >= 1 else "Developing Match")
-    
-    evidence_claims = db.query(Claim).filter(
-        Claim.user_id == current_user.id,
-        Claim.status == "user_confirmed"
-    ).all()
-    
-    return RecruiterMatchResponse(
-        role_name=role_name,
-        overall_match=overall,
-        why_text=f"Candidate demonstrates high verified capability in {', '.join([c.item_name for c in criteria_matches if c.status == 'strong'][:3]) or 'software development'}.",
-        strengths=[c.item_name for c in criteria_matches if c.status == "strong"],
-        gaps=[c.item_name for c in criteria_matches if c.status == "weak"],
-        criteria_matches=criteria_matches,
-        evidence_backed_claims=[ClaimResponse.model_validate(c) for c in evidence_claims]
-    )
+    """Evaluates candidate match against a target role based on empirical capability matrices and mathematical scoring."""
+    return evaluate_recruiter_role_match(current_user, role_name, db)
+
+
+@app.post("/api/recruiter/match-jd", response_model=RecruiterMatchResponse)
+def post_match_custom_job_description(
+    req: CustomJobDescriptionMatchRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Evaluates candidate evidence against arbitrary pasted Job Description text.
+    Extracts required technical capabilities and executes 4-dimension ground-truth matching.
+    """
+    return match_custom_job_description(current_user, req.title or "Target Role", req.job_description_text, db)
+
 
 
 # --- Multi-Source Profile Ingestion ---
@@ -2199,4 +1603,169 @@ def delete_idea(id: uuid.UUID, current_user: User = Depends(get_current_user), d
     db.delete(db_idea)
     db.commit()
     return {"status": "deleted"}
+
+
+# ─── Career Change Intelligence (Diff & Significance) ────────────────────────
+
+@app.get("/api/career/delta", response_model=CareerDeltaReport)
+def get_career_delta(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Computes mathematical diff between candidate's latest snapshot and live graph state,
+    identifying newly demonstrated capabilities, domain momentum, and resume refresh items.
+    """
+    return compute_career_delta(current_user, db)
+
+
+@app.post("/api/events/classify", response_model=EventSignificanceResult)
+def classify_codebase_event(
+    commit_message: Optional[str] = Query(None, description="Commit message or release title"),
+    files_changed: Optional[str] = Query(None, description="Comma-separated or repeated file paths"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Evaluates codebase commit significance against Career Graph 4-tier model (LOW/MEDIUM/HIGH/CAREER_SIGNIFICANT)
+    to determine autonomous update policies without noise.
+    """
+    msg = commit_message or ""
+    file_list = [f.strip() for f in files_changed.split(",") if f.strip()] if files_changed else []
+    return classify_event_significance(msg, file_list)
+
+
+@app.post("/api/webhooks/github")
+async def handle_github_webhook(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Autonomous event webhook: validates GitHub HMAC-SHA256 signature, maps repository to User,
+    persists new commits/evidence, classifies significance, and triggers graph updates.
+    """
+    raw_body = await request.body()
+    
+    # 1. Signature Verification (HMAC-SHA256)
+    sig_header = request.headers.get("x-hub-signature-256") or request.headers.get("X-Hub-Signature-256")
+    if GITHUB_WEBHOOK_SECRET:
+        if not sig_header:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-Hub-Signature-256 header")
+        expected_sig = "sha256=" + hmac.new(GITHUB_WEBHOOK_SECRET.encode(), raw_body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig_header, expected_sig):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
+
+    try:
+        payload = json.loads(raw_body.decode()) if raw_body else {}
+    except Exception:
+        payload = {}
+
+    repo_data = payload.get("repository", {})
+    repo_name = repo_data.get("name", "repository")
+    repo_url = repo_data.get("html_url") or repo_data.get("url") or f"https://github.com/example/{repo_name}"
+    owner_login = repo_data.get("owner", {}).get("login") or payload.get("sender", {}).get("login") or ""
+    
+    # 2. Resolve User from repository / sender
+    user = None
+    if owner_login:
+        user = db.query(User).filter(User.github_username.ilike(owner_login)).first()
+    if not user and repo_url:
+        matched_proj = db.query(Project).filter(Project.repository_url == repo_url).first()
+        if matched_proj:
+            user = db.query(User).filter(User.id == matched_proj.user_id).first()
+
+    commits = payload.get("commits", [])
+    head_commit = payload.get("head_commit") or (commits[-1] if commits else {})
+    commit_msg = head_commit.get("message", "")
+    commit_hash = head_commit.get("id", str(uuid.uuid4()))
+    modified_files = head_commit.get("modified", []) + head_commit.get("added", [])
+    
+    # 3. Classify event significance
+    significance = classify_event_significance(commit_msg, modified_files)
+    
+    delta_generated = False
+    snapshot_created = False
+    
+    # 4. If User is connected, execute autonomous graph and evidence updates
+    if user:
+        # Find or create project
+        project = db.query(Project).filter(
+            Project.user_id == user.id,
+            (Project.title.ilike(repo_name) | (Project.repository_url == repo_url))
+        ).first()
+        
+        if not project:
+            project = Project(
+                user_id=user.id,
+                title=repo_name,
+                description=repo_data.get("description") or f"Repository {repo_name}",
+                repository_url=repo_url,
+                complexity_score=0.6,
+                project_type="SYSTEM"
+            )
+            db.add(project)
+            db.flush()
+            
+        # Record Activity
+        activity = Activity(
+            user_id=user.id,
+            project_id=project.id,
+            type="COMMIT" if not payload.get("release") else "RELEASE",
+            source="github",
+            source_id=commit_hash[:12],
+            timestamp=datetime.now(timezone.utc),
+            activity_metadata={
+                "message": commit_msg,
+                "files_changed_count": len(modified_files),
+                "significance": significance.level
+            }
+        )
+        db.add(activity)
+        
+        # Record Evidence
+        evidence = Evidence(
+            user_id=user.id,
+            project_id=project.id,
+            type="COMMIT" if not payload.get("release") else "RELEASE",
+            source="github",
+            source_url=head_commit.get("url") or f"{repo_url}/commit/{commit_hash}",
+            source_identifier=commit_hash[:8],
+            content=commit_msg,
+            hash=commit_hash,
+            confidence=significance.score,
+            metadata_json={"affected_competencies": significance.affected_competencies}
+        )
+        db.add(evidence)
+        db.commit()
+        
+        # 5. If event is HIGH or CAREER_SIGNIFICANT, capture snapshot & compute delta
+        if significance.level in ("HIGH", "CAREER_SIGNIFICANT"):
+            active_projs = [p.title for p in db.query(Project).filter(Project.user_id == user.id).all()]
+            dom_prog = [dp.domain.name for dp in db.query(DomainProgress).filter(DomainProgress.user_id == user.id).all()]
+            sk_prog = [sp.skill.name for sp in db.query(SkillProgress).filter(SkillProgress.user_id == user.id).all()]
+            
+            snapshot = CareerSnapshot(
+                user_id=user.id,
+                dominant_domains=dom_prog[:4],
+                emerging_domains=dom_prog[4:7],
+                strongest_skills=sk_prog[:8],
+                active_projects=active_projs,
+                career_direction=f"Autonomous update following {significance.level} event: {commit_msg[:60]}"
+            )
+            db.add(snapshot)
+            db.commit()
+            snapshot_created = True
+            delta_generated = True
+
+    return {
+        "status": "processed",
+        "user_associated": user is not None,
+        "user_id": str(user.id) if user else None,
+        "significance": significance.level,
+        "action_policy": significance.action_policy,
+        "affected_competencies": significance.affected_competencies,
+        "rationale": significance.rationale,
+        "snapshot_created": snapshot_created,
+        "delta_generated": delta_generated
+    }
+
 

@@ -117,6 +117,19 @@ export function GitHubAuthModal({
             </div>
           )}
 
+          <div className={styles.onboardingSteps}>
+            <div className={styles.stepsTitle}>WHAT HAPPENS AFTER YOU CONNECT</div>
+            <div className={styles.stepGrid}>
+              <div className={styles.stepItem}><span className={styles.stepNum}>01</span><span>Discover your projects & source files</span></div>
+              <div className={styles.stepItem}><span className={styles.stepNum}>02</span><span>Understand what each system actually does</span></div>
+              <div className={styles.stepItem}><span className={styles.stepNum}>03</span><span>Identify recurring technical capabilities</span></div>
+              <div className={styles.stepItem}><span className={styles.stepNum}>04</span><span>Construct ground-truth career trajectory</span></div>
+              <div className={styles.stepItem}><span className={styles.stepNum}>05</span><span>Generate evidence-backed professional profiles</span></div>
+              <div className={styles.stepItem}><span className={styles.stepNum}>06</span><span>Keep representation synced as your code evolves</span></div>
+            </div>
+            <div className={styles.controlNote}>You remain in full control of all public claims & profiles.</div>
+          </div>
+
           {/* Content */}
           {activeTab === "token" ? (
             <form onSubmit={handlePatSubmit} className={styles.form}>

@@ -270,7 +270,7 @@ export function FeaturedResumeView({ blocks, onInspectProof }: FeaturedResumeVie
                       onInspectProof({
                         id: ach.claim_id,
                         claim: ach.description,
-                        confidence: 0.95,
+                        confidence: ach.confidence ?? 0,
                         claim_type: "TECHNICAL_ACHIEVEMENT",
                         status: "user_confirmed",
                       } as Claim);
@@ -303,15 +303,20 @@ export function FeaturedResumeView({ blocks, onInspectProof }: FeaturedResumeVie
 
           <div className={styles.skillPillGrid}>
             {techDepth?.clusters?.map((c, idx) => (
-              <span key={idx} className={styles.skillPill}>
+              <span key={`domain-${idx}`} className={styles.skillPill}>
                 {c.domain}
               </span>
             ))}
-            {["Python", "FastAPI", "Distributed Systems", "TypeScript", "Next.js", "Docker"].map((s, idx) => (
-              <span key={`extra-${idx}`} className={styles.skillPill}>
+            {(techDepth?.skills || []).slice(0, 8).map((s, idx) => (
+              <span key={`skill-${idx}`} className={styles.skillPill}>
                 {s}
               </span>
             ))}
+            {(!techDepth?.clusters || techDepth.clusters.length === 0) && (!techDepth?.skills || techDepth.skills.length === 0) && (
+              <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontStyle: "italic" }}>
+                No verified competencies recorded yet.
+              </span>
+            )}
           </div>
         </div>
 
